@@ -36,7 +36,6 @@ impl Frame {
             if child.get_id() == target_id {
                 return Some(&mut **child);
             }
-            // Если ребенок — это фрейм, ищем внутри него
             if let Some(frame) = child.as_any_mut().downcast_mut::<Frame>() {
                 if let Some(found) = frame.find_mut(target_id) {
                     return Some(found);
@@ -90,7 +89,6 @@ impl Frame {
         let mut max_child_width = 0;
         let mut current_total_height = 0;
 
-        // Сначала просим всех детей посчитать себя (Label посчитает свои 104px)
         for child in &mut self.children {
             child.update_layout(); 
             let child_size = child.get_size();
@@ -101,8 +99,6 @@ impl Frame {
             current_total_height += child_size.height;
         }
 
-        // ВАЖНО: Если фрейм должен подстраиваться под контент, меняем его размер
-        // Добавь проверку на стратегию или просто делай это для начала
         if self.base.size.width < max_child_width {
             self.base.size.width = max_child_width;
         }
@@ -112,7 +108,6 @@ impl Frame {
 
         let parent_width = self.base.size.width;
 
-        // Теперь, когда Frame расширился, расставляем детей по центру
         for child in &mut self.children {
             let layoutstrat = child.get_layout_strat();
             let child_size = child.get_size();
@@ -127,7 +122,6 @@ impl Frame {
 
     pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) {
         self.children.push(Box::new(widget));
-        // После добавления нового виджета сразу обновляем позиции всех остальных
         self.update_layout();
     }
 }
@@ -146,23 +140,19 @@ impl Widget for Frame {
             self.base.size.height as f32
         ).unwrap();
 
-        // 2. Находим ПЕРЕСЕЧЕНИЕ нашего ректа и того, что прислал родитель
-        // Это и будет новая разрешенная зона для детей
         let inner_clip = match intersect_rects(clip, my_rect) {
             Some(r) => r,
-            None => return, // Если мы вообще вне зоны видимости — не рисуем ничего
+            None => return,
         };
 
         //BGRA is needed here
         let mut paint = Paint::default();
         paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
         
-        // В tiny-skia нет простого ClipStack, поэтому мы эмулируем его через маску или обрезая геометрию
         if let Some(visible_part) = intersect_rects(my_rect, clip) {
              pixmap.fill_rect(visible_part, &paint, tiny_skia::Transform::identity(), None);
         }
 
-        // 4. Передаем эстафету детям с НОВЫМ ограничением
         for child in &self.children {
             child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), inner_clip);
         }

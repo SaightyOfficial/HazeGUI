@@ -1,58 +1,56 @@
 use haze_gui::{Win, core::{color::Color, size::Size, event::Action}, widgets::{button::Button, label::Label}};
 
+//creating appstate
 pub struct AppState {
     pub click_count: i32,
 }
 
 fn main() {
-    let init_state = AppState { click_count: 0 };
-    let mut root = Win::new(init_state);
+    let init_state = AppState { click_count: 0 }; //initializing appstate
+    let mut root = Win::new(init_state); // Creating window
     
-    root.title("Simple counter");
-    root.geometry(Size::new(400, 400));
+    root.title("Simple counter");                    //Setting window title
+    root.geometry(Size::new(400, 400)); //Setting window size
     
     let text = Label::new("counter_text".to_string())
         .text(root.state.click_count.to_string())
-        .bgcolor(Color::TRANSPARENT);
+        .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
         
     let buttonadd = Button::new("add".to_string())
         .text("+1")
-        .color(Color::BLUE);
+        .color(Color::BLUE);//Setting up button with id, text, and background color
 
     let buttonsub = Button::new("sub".to_string())
         .text("-1")
-        .color(Color::BLUE);
+        .color(Color::BLUE);//Setting up button with id, text, and background color
     
-    root.mainframe.add_widget(text);
-    root.mainframe.add_widget(buttonadd);
-    root.mainframe.add_widget(buttonsub);
+    root.mainframe.add_widget(text);     //Adding counter label to main frame
+    root.mainframe.add_widget(buttonadd);//Adding add button to main frame
+    root.mainframe.add_widget(buttonsub);//Adding substract button to main frame
 
-    root.mainloop(|action, mainframe, state| {
+    root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
-            Action::ButtonClicked(id) => {
-                if id == "add" {
-                    state.click_count += 1;
+            Action::ButtonClicked(id) => { //proccesing action that buttons send when they are clicked
+                if id == "add" { // checking button id
+                    state.click_count += 1; //changing counter data
                     
-                    if let Some(widget) = mainframe.find_mut("counter_text") {
-                        if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.new_text(state.click_count.to_string());
+                    if let Some(widget) = mainframe.find_mut("counter_text") { //searching for counter label in mainframe using id
+                        if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
+                            label.new_text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }
-                if id == "sub" {
-                    state.click_count -= 1;
+                if id == "sub" {  // checking button id
+                    state.click_count -= 1; //changing counter data
                     
-                    if let Some(widget) = mainframe.find_mut("counter_text") {
-                        if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.new_text(state.click_count.to_string());
+                    if let Some(widget) = mainframe.find_mut("counter_text") { //searching for counter label in mainframe using id
+                        if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
+                            label.new_text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }
             }
-            //Action::Hovered(id) => {
-            //    println!("Hovered event: {}", id);
-            //}
-            _ => {}
+            _ => {}// ignoring other signals such as Acrion::None
         }
     });
 }

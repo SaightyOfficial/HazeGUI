@@ -128,8 +128,7 @@ mod tests {
 
     #[test]
     fn test_as_u32_alpha() {
-        let c = Color::rgba(255, 0, 0, 255); // Чистый красный
-        // 255 << 24 | 0 << 16 | 0 << 8 | 255 = 0xFF0000FF
+        let c = Color::rgba(255, 0, 0, 255);
         assert_eq!(c.as_u32_alpha(), 0xFF0000FF);
     }
 }

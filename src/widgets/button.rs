@@ -45,7 +45,6 @@ impl Widget for Button {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
     fn get_id(&self) -> &str { &self.id }
     fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect) {
-        // Создаем временную копию фрейма для отрисовки
         //let display_color = if self.is_hovered {
         //    self.frame.base.bgcolor.clone().lighter(30)
         //} else {
@@ -60,19 +59,17 @@ impl Widget for Button {
     fn update_layout(&mut self) {
         self.frame.children.clear();
         
-        // 1. Принудительно обновляем размер текста
         self.text.update_size(); 
         //println!("wid{} hei{}", self.frame.base.size.width.clone(), self.frame.base.size.height.clone());
-        // 2. Если ты хочешь, чтобы кнопка сама растягивалась:
+        
         let text_size = self.text.get_size();
         self.frame.set_size(text_size); 
 
-        // 3. Добавляем и обновляем фрейм
+        
         self.frame.add_widget(self.text.clone());
         self.frame.update_layout();
     }
 
-    // Обязательно используем self.base для внешнего мира!
     fn set_size(&mut self, size: Size) { 
         self.frame.base.size = size; 
         self.update_layout(); 

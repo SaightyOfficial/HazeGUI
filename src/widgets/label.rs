@@ -12,7 +12,6 @@ use crate::core::common::{LayoutEnum, LayoutStrat, Side, intersect_rects};
 static FONT_DATA: &[u8] = include_bytes!("../../fonts/JetBrainsMono-Regular.ttf");
 
 lazy_static::lazy_static! {
-    // Создаем глобальный объект шрифта, чтобы не пересоздавать его каждый раз
     pub static ref JETBRAINS_FONT: Font = {
         Font::from_bytes(FONT_DATA, FontSettings::default()).expect("Ошибка загрузки шрифта")
     };
@@ -24,7 +23,7 @@ pub struct Label {
     pub text: String,
     pub font_size: f32,
     pub textcolor: Color,
-    pub needs_update: bool, // Флаг, что текст изменился
+    pub needs_update: bool,
 }
 
 impl Label {
@@ -34,7 +33,7 @@ impl Label {
             text: String::new(),
             font_size: 14.0,
             textcolor: Color::BLACK,
-            needs_update: false, // Флаг, что текст изменился
+            needs_update: false,
         };
 
         label.update_size();
@@ -44,10 +43,9 @@ impl Label {
     pub fn update_size(&mut self) {
         let old_size = self.base.size.clone();
         let mut width = 0.0;
-        // Используем более надежный расчет высоты для всей строки
+        
         let line_metrics = JETBRAINS_FONT.horizontal_line_metrics(self.font_size);
         
-        // Если line_metrics нет (редко), берем размер шрифта как базу
         let height = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size);
 
         for c in self.text.chars() {
@@ -55,7 +53,6 @@ impl Label {
             width += metrics.advance_width;
         }
 
-        // Добавляем по 2 пикселя запаса, чтобы не было "впритык"
         self.base.size = Size::new((width + 4.0) as i32, height as i32);
         if old_size.width != self.base.size.width || old_size.height != self.base.size.height {
             self.needs_update = true;
@@ -64,7 +61,7 @@ impl Label {
 
     pub fn text(mut self, new_text: String) -> Self {
         self.text = new_text;
-        self.update_size(); // ВАЖНО: обновляем размер сразу
+        self.update_size();
         self
     }
 
@@ -215,7 +212,7 @@ impl Widget for Label {
             actions.push(Action::UpdateLayoutRequest);
             actions.push(Action::RedrawRequest);
             println!("RedrawRequest");
-            self.needs_update = false; // Сбрасываем флаг
+            self.needs_update = false;
         } else {
             actions.push(Action::None);
         }   

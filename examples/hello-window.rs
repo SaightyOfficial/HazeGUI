@@ -14,9 +14,9 @@ fn main() {
     let text = Label::new("text".to_string())
         .text("Hello world!".to_string());
     
-    root.mainframe.add_widget(text);
+    root.mainframe.add_widget(text);//Adding label to main frame
 
-    root.mainloop(|action, _mainframe, _state| {
+    root.mainloop(|action, _mainframe, _state| { //Mainloop is mostly empty here because we dont need to process ane actions
         match action {
             _ => {}
         }

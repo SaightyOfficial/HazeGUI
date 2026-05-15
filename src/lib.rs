@@ -118,7 +118,7 @@ impl<T> ApplicationHandler for Win<T> {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let mut actions = Vec::new(); // Вектор для сбора событий за один кадр
+        let mut actions = Vec::new();
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -164,20 +164,19 @@ impl<T> ApplicationHandler for Win<T> {
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == winit::event::MouseButton::Left && state == winit::event::ElementState::Pressed {
                     let click_event = crate::core::event::Event::MouseClick { pos: self.mouse_pos };
-                    // Собираем события
+                    
                     self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut actions);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_pos = Pos::new(position.x as i32, position.y as i32);
                 let move_event = crate::core::event::Event::MouseMove { pos: self.mouse_pos };
-                // Собираем события
+                
                 self.mainframe.handle_event(&move_event, Pos::new(0, 0), &mut actions);
             }
             _ => (),
         }
 
-        // Если в этом кадре что-то произошло (нажали кнопку, навели мышь)
         if !actions.is_empty() {
             let mut onlynone = true;
             if let Some(mut cb) = self.user_cb.take() {
