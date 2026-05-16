@@ -9,10 +9,9 @@ fn main() {
     let init_state = AppState { click_count: 0 }; //initializing appstate
     let mut root = Win::new(init_state); // Creating window
     
-    root.title("Simple counter");                    //Setting window title
+    root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size
-
-    let mut frame = Frame::new("frame".to_string()).color(Color::TEAL).style(FrameStyle::GROOVE);
+    root.resizable(false); //Can window be resized?
     
     let text = Label::new("counter_text".to_string())
         .text(root.state.click_count.to_string())
@@ -28,11 +27,9 @@ fn main() {
         .textcolor(Color::WHITE)
         .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
     
-    frame.add_widget(text);     //Adding counter label to main frame
-    frame.add_widget(buttonadd);//Adding add button to main frame
-    frame.add_widget(buttonsub);//Adding substract button to main frame
-
-    root.mainframe.add_widget(frame);
+    root.mainframe.add_widget(text);     //Adding counter label to main frame
+    root.mainframe.add_widget(buttonadd);//Adding add button to main frame
+    root.mainframe.add_widget(buttonsub);//Adding substract button to main frame
 
     root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
