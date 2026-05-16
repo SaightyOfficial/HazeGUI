@@ -1,4 +1,4 @@
-use haze_gui::{Win, core::{color::Color, size::Size, event::Action}, widgets::{button::Button, label::Label}};
+use haze_gui::{Win, core::{color::Color, event::Action, size::Size}, widgets::{button::Button, label::Label}};
 
 //creating appstate
 pub struct AppState {
@@ -18,11 +18,13 @@ fn main() {
         
     let buttonadd = Button::new("add".to_string())
         .text("+1")
-        .color(Color::BLUE);//Setting up button with id, text, and background color
+        .textcolor(Color::WHITE)
+        .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
 
     let buttonsub = Button::new("sub".to_string())
         .text("-1")
-        .color(Color::BLUE);//Setting up button with id, text, and background color
+        .textcolor(Color::WHITE)
+        .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
     
     root.mainframe.add_widget(text);     //Adding counter label to main frame
     root.mainframe.add_widget(buttonadd);//Adding add button to main frame
@@ -30,13 +32,14 @@ fn main() {
 
     root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
-            Action::ButtonClicked(id) => { //proccesing action that buttons send when they are clicked
+            Action::ButtonReleased(id) => { //proccesing action that buttons send when they are clicked
                 if id == "add" { // checking button id
                     state.click_count += 1; //changing counter data
                     
                     if let Some(widget) = mainframe.find_mut("counter_text") { //searching for counter label in mainframe using id
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
                             label.new_text(state.click_count.to_string()); //changing label text
+                            //mainframe.style = FrameStyle::GROOVE;
                         }
                     }
                 }
@@ -46,6 +49,7 @@ fn main() {
                     if let Some(widget) = mainframe.find_mut("counter_text") { //searching for counter label in mainframe using id
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
                             label.new_text(state.click_count.to_string()); //changing label text
+                            //mainframe.style = FrameStyle::FLAT;
                         }
                     }
                 }

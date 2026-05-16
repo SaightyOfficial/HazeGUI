@@ -7,8 +7,18 @@ use tiny_skia::{PixmapMut, Paint, Rect, Color as SkiaColor};
 
 use crate::core::common::{LayoutEnum, LayoutStrat, Side, intersect_rects};
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum FrameStyle {
+    FLAT,
+    RAISED,
+    SUNKEN,
+    GROOVE,
+    RIDGE,
+}
+
 pub struct Frame {
     pub base: WidgetBase,
+    pub style: FrameStyle,
     pub children: Vec<Box<dyn Widget>>,
     pub usedleft: UsedCord,
     pub usedmiddle: UsedCord,
@@ -20,6 +30,7 @@ impl Frame {
     pub fn new(id:String) -> Self {
         Self {
             base: WidgetBase::new(id),
+            style: FrameStyle::FLAT,
             children: Vec::new(),
             usedmiddle: UsedCord::default(),
             usedleft: UsedCord::default(),
@@ -57,9 +68,14 @@ impl Frame {
         self
     }
 
-    //colors
+    //colors and styles
     pub fn color(mut self, color: Color) -> Self {
         self.base.bgcolor = color;
+        self
+    }
+
+    pub fn style(mut self, style: FrameStyle) -> Self {
+        self.style = style;
         self
     }
 
@@ -86,8 +102,13 @@ impl Frame {
 
     pub fn refresh_layout(&mut self) {
         self.usedmiddle = UsedCord::default();
+        self.usedleft = UsedCord::default();
+        self.usedright = UsedCord::default();
         let mut max_child_width = 0;
         let mut current_total_height = 0;
+
+        let border_thickness = if self.style == FrameStyle::FLAT { 0 } else { 2 };
+        let border_padding = border_thickness * 2;
 
         for child in &mut self.children {
             child.update_layout(); 
@@ -99,21 +120,25 @@ impl Frame {
             current_total_height += child_size.height;
         }
 
-        if self.base.size.width < max_child_width {
-            self.base.size.width = max_child_width;
+        let required_width = max_child_width + border_padding;
+        let required_height = current_total_height + border_padding;
+
+        if self.base.size.width < required_width {
+            self.base.size.width = required_width;
         }
-        if self.base.size.height < current_total_height {
-            self.base.size.height = current_total_height;
+        if self.base.size.height < required_height {
+            self.base.size.height = required_height;
         }
 
-        let parent_width = self.base.size.width;
+        let parent_width = self.base.size.width - border_padding;
+        self.usedmiddle.used_y = border_thickness;
 
         for child in &mut self.children {
             let layoutstrat = child.get_layout_strat();
             let child_size = child.get_size();
 
             if layoutstrat.method == LayoutEnum::AUTO && layoutstrat.side == Side::MIDDLE {
-                let middlepos = (parent_width - child_size.width) / 2;
+                let middlepos = border_thickness + (parent_width - child_size.width) / 2;
                 child.set_pos(Pos::new(middlepos, self.usedmiddle.used_y));
                 self.usedmiddle.used_y += child_size.height;
             }
@@ -132,6 +157,8 @@ impl Widget for Frame {
     fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect) {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
+        let w = self.base.size.width as f32;
+        let h = self.base.size.height as f32;
 
         let my_rect = Rect::from_xywh(
             abs_x, 
@@ -148,13 +175,90 @@ impl Widget for Frame {
         //BGRA is needed here
         let mut paint = Paint::default();
         paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+
+        let mut paintdark = Paint::default();
+        let darkercolor = self.base.bgcolor.clone().darker(75);
+        paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
+
+        let mut paintlight = Paint::default();
+        let lightercolor = self.base.bgcolor.clone().lighter(75);
+        paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+
+        let border_thickness = if self.style == FrameStyle::FLAT { 0.0 } else { 2.0 };
         
         if let Some(visible_part) = intersect_rects(my_rect, clip) {
-             pixmap.fill_rect(visible_part, &paint, tiny_skia::Transform::identity(), None);
+            pixmap.fill_rect(visible_part, &paint, tiny_skia::Transform::identity(), None);
+            if border_thickness != 0.0 {
+                match self.style {
+                    FrameStyle::FLAT => {}
+                    FrameStyle::RAISED => {
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                    }
+
+                    FrameStyle::SUNKEN => {
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                    }
+
+                    FrameStyle::GROOVE => {
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                    }
+
+                    FrameStyle::RIDGE => {
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                    }
+                }
+            }
         }
 
+        let inner_rect = Rect::from_xywh(
+            abs_x + border_thickness,
+            abs_y + border_thickness,
+            w - (border_thickness * 2.0),
+            h - (border_thickness * 2.0)
+        ).unwrap();
+
+        // Скрещиваем наш внутренний прямоугольник с глобальным клипом
+        let child_clip = match intersect_rects(inner_clip, inner_rect) {
+            Some(r) => r,
+            None => return, // Если внутреннее пространство полностью обрезано — детей не рендерим
+        };
+
         for child in &self.children {
-            child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), inner_clip);
+            child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), child_clip);
         }
     }
     fn get_size(&self) -> Size {

@@ -166,6 +166,10 @@ impl<T> ApplicationHandler for Win<T> {
                     let click_event = crate::core::event::Event::MouseClick { pos: self.mouse_pos };
                     
                     self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut actions);
+                } else if button == winit::event::MouseButton::Left && state == winit::event::ElementState::Released {
+                    let click_event = crate::core::event::Event::MouseRelease { pos: self.mouse_pos };
+                    
+                    self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut actions);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {

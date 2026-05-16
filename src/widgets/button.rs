@@ -2,7 +2,7 @@ use crate::core::event::{Action, Event};
 use crate::core::size::Size;
 use crate::core::{color::Color, pos::Pos};
 use crate::core::widget::Widget;
-use crate::widgets::frame::Frame;
+use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
 use crate::core::common::LayoutStrat;
 use tiny_skia::{PixmapMut, Rect};
@@ -12,15 +12,17 @@ pub struct Button {
     pub frame: Frame,
     pub text: Label,
     is_hovered:bool,
+    is_pressed:bool,
 }
 
 impl Button {
     pub fn new(id: String) -> Self {
         Self {
             id: id.clone(),
-            frame: Frame::new(format!("{}.frame", id.clone())),
+            frame: Frame::new(format!("{}.frame", id.clone())).style(FrameStyle::RAISED),
             text: Label::new(format!("{}.label", id.clone())).bgcolor(Color::TRANSPARENT),
             is_hovered: false,
+            is_pressed: false,
         }
     }
     pub fn text(mut self, new_text: &str) -> Self {
@@ -122,7 +124,16 @@ impl Widget for Button {
         match event {
             Event::MouseClick { pos } => {
                 if self.is_point_inside(*pos, pos_off) {
+                    self.frame.style = FrameStyle::SUNKEN;
+                    self.is_pressed = true;
                     actions.push(Action::ButtonClicked(self.id.clone()));
+                }
+            }
+            Event::MouseRelease { pos } => {
+                if self.is_point_inside(*pos, pos_off) {
+                    self.frame.style = FrameStyle::RAISED;
+                    self.is_pressed = false;
+                    actions.push(Action::ButtonReleased(self.id.clone()));
                 }
             }
             Event::MouseMove { pos } => {
@@ -132,6 +143,8 @@ impl Widget for Button {
                     actions.push(Action::Hovered(self.id.clone()));
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
+                    self.frame.style = FrameStyle::RAISED;
+                    self.is_pressed = false;
                     actions.push(Action::Unhovered(self.id.clone()));
                 }
             }

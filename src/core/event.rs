@@ -2,6 +2,7 @@ use crate::core::pos::Pos;
 
 pub enum Event {
     MouseClick { pos: Pos },
+    MouseRelease { pos: Pos },
     MouseMove { pos: Pos },
 }
 
