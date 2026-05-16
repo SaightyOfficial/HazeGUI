@@ -4,7 +4,7 @@ use crate::core::{color::Color, pos::Pos};
 use crate::core::widget::Widget;
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use crate::core::common::{LayoutStrat, SizeStrat};
+use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeStrat};
 use tiny_skia::{PixmapMut, Rect};
 
 pub struct Button {
@@ -33,6 +33,24 @@ impl Button {
         self
     }
 
+    pub fn new_text(&mut self, new_text: String) {
+        self.text.text = new_text;
+        self.text.update_size();
+    }
+
+    //positions
+    pub fn pos(mut self, posnew: Pos) -> Self {
+        self.frame.base.pos = posnew;
+        self.frame.base.layoutstrat.method = LayoutEnum::MANUAL;
+        self
+    }
+
+    pub fn side(mut self, side: Side) -> Self {
+        self.frame.base.layoutstrat.side = side;
+        self
+    }
+
+    //colors
     pub fn color(mut self, new_color: Color) -> Self {
         //self.text.base.bgcolor = new_color;
         self.frame.base.bgcolor = new_color;
@@ -47,6 +65,32 @@ impl Button {
 
     pub fn hovercolor(mut self, new_color: Color) -> Self {
         self.hover_color = Some(new_color);
+        self
+    }
+
+    //sizes
+    pub fn fill_x(mut self) -> Self {
+        self.frame.base.sizestrat.fill = ChooseCords::X;
+        self
+    }
+
+    pub fn fill_y(mut self) -> Self {
+        self.frame.base.sizestrat.fill = ChooseCords::Y;
+        self
+    }
+
+    pub fn fill_both(mut self) -> Self {
+        self.frame.base.sizestrat.fill = ChooseCords::BOTH;
+        self
+    }
+
+    pub fn size(mut self, size: Size) -> Self {
+        self.frame.base.size = size;
+        self
+    }
+
+    pub fn font_size(mut self, size: f32) -> Self {
+        self.text.font_size = size;
         self
     }
 }
@@ -76,9 +120,9 @@ impl Widget for Button {
         
         let text_size = self.text.get_size();
         self.frame.set_size(text_size); 
-
         
         self.frame.add_widget(self.text.clone());
+        
         self.frame.update_layout();
     }
 

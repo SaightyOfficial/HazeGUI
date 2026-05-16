@@ -109,44 +109,89 @@ impl Frame {
     }
 
     pub fn refresh_layout(&mut self) {
-        self.usedmiddle = UsedCord::default();
-        self.usedleft = UsedCord::default();
-        self.usedright = UsedCord::default();
-        let mut max_child_width = 0;
-        let mut current_total_height = 0;
+        self.usedleft.used_y = 0;
+        self.usedmiddle.used_y = 0;
+        self.usedright.used_y = 0;
+        
+        // Трекеры максимальной ширины для каждой стороны
+        let mut max_left_width = 0;
+        let mut max_middle_width = 0;
+        let mut max_right_width = 0;
 
         let border_thickness = if self.style == FrameStyle::FLAT { 0 } else { 2 };
         let border_padding = border_thickness * 2;
 
+        // --- ПРОХОД 1: Собираем статистику по всем трёх коридорам ---
         for child in &mut self.children {
             child.update_layout(); 
             let child_size = child.get_size();
+            let layoutstrat = child.get_layout_strat();
             
-            if child_size.width > max_child_width {
-                max_child_width = child_size.width;
+            if layoutstrat.method == LayoutEnum::AUTO {
+                match layoutstrat.side {
+                    Side::LEFT => {
+                        if child_size.width > max_left_width { max_left_width = child_size.width; }
+                        self.usedleft.used_y += child_size.height;
+                    }
+                    Side::MIDDLE => {
+                        if child_size.width > max_middle_width { max_middle_width = child_size.width; }
+                        self.usedmiddle.used_y += child_size.height;
+                    }
+                    Side::RIGHT => {
+                        if child_size.width > max_right_width { max_right_width = child_size.width; }
+                        self.usedright.used_y += child_size.height;
+                    }
+                }
+            } else {
+                // На случай MANUAL виджетов, чтобы они тоже не ломали общую логику
+                if child_size.width > max_middle_width { max_middle_width = child_size.width; }
             }
-            current_total_height += child_size.height;
         }
 
-        let required_width = max_child_width + border_padding;
-        let required_height = current_total_height + border_padding;
+        // Финальная требуемая ширина — это сумма максимумов всех трёх сторон!
+        let required_width = max_left_width + max_middle_width + max_right_width + border_padding;
 
+        // Высота — по самому длинному коридору
+        let max_corridor_height = self.usedleft.used_y
+            .max(self.usedmiddle.used_y)
+            .max(self.usedright.used_y);
+        let required_height = max_corridor_height + border_padding;
+
+        // Если у фрейма стоит AUTO-размер, выставляем честно посчитанные значения
         if self.get_size_strat().method == SizeEnum::AUTO {
             self.base.size.width = required_width;
             self.base.size.height = required_height;
         }
 
+        // --- ПРОХОД 2: Расставляем виджеты по местам (код остаётся старым) ---
         let parent_width = self.base.size.width - border_padding;
+
+        self.usedleft.used_y = border_thickness;
         self.usedmiddle.used_y = border_thickness;
+        self.usedright.used_y = border_thickness;
 
         for child in &mut self.children {
             let layoutstrat = child.get_layout_strat();
             let child_size = child.get_size();
 
-            if layoutstrat.method == LayoutEnum::AUTO && layoutstrat.side == Side::MIDDLE {
-                let middlepos = border_thickness + (parent_width - child_size.width) / 2;
-                child.set_pos(Pos::new(middlepos, self.usedmiddle.used_y));
-                self.usedmiddle.used_y += child_size.height;
+            if layoutstrat.method == LayoutEnum::AUTO {
+                match layoutstrat.side {
+                    Side::LEFT => {
+                        let x_pos = border_thickness;
+                        child.set_pos(Pos::new(x_pos, self.usedleft.used_y));
+                        self.usedleft.used_y += child_size.height;
+                    }
+                    Side::MIDDLE => {
+                        let x_pos = border_thickness + (parent_width - child_size.width) / 2;
+                        child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
+                        self.usedmiddle.used_y += child_size.height;
+                    }
+                    Side::RIGHT => {
+                        let x_pos = border_thickness + parent_width - child_size.width;
+                        child.set_pos(Pos::new(x_pos, self.usedright.used_y));
+                        self.usedright.used_y += child_size.height;
+                    }
+                }
             }
         }
     }
@@ -154,6 +199,19 @@ impl Frame {
     pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) {
         self.children.push(Box::new(widget));
         self.update_layout();
+    }
+
+    pub fn remove_widget(&mut self, target_id: &str) -> bool {
+        let old_len = self.children.len();
+
+        self.children.retain(|child| child.get_id() != target_id);
+
+        if self.children.len() < old_len {
+            self.update_layout();
+            return true;
+        }
+
+        false
     }
 }
 
@@ -166,97 +224,92 @@ impl Widget for Frame {
         let w = self.base.size.width as f32;
         let h = self.base.size.height as f32;
 
-        let my_rect = Rect::from_xywh(
-            abs_x, 
-            abs_y, 
-            self.base.size.width as f32, 
-            self.base.size.height as f32
-        ).unwrap();
+        let my_rect = Rect::from_xywh(abs_x, abs_y, w, h).unwrap();
 
         let inner_clip = match intersect_rects(clip, my_rect) {
             Some(r) => r,
             None => return,
         };
 
-        //BGRA is needed here
+        // Настраиваем цвета (BGRA)
         let mut paint = Paint::default();
         let mut paintdark = Paint::default();
         let mut paintlight = Paint::default();
-        if preferred_color.is_some() {
-            let preferred_color_done = preferred_color.unwrap();
+        
+        if let Some(preferred_color_done) = preferred_color {
             paint.set_color(SkiaColor::from_rgba8(preferred_color_done.b, preferred_color_done.g, preferred_color_done.r, preferred_color_done.a));
-
             let darkercolor = preferred_color_done.darker(self.lightchangeamount);
             paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
-            
             let lightercolor = preferred_color_done.lighter(self.lightchangeamount);
             paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
         } else {
             paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
-
             let darkercolor = self.base.bgcolor.darker(self.lightchangeamount);
             paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
-
             let lightercolor = self.base.bgcolor.lighter(self.lightchangeamount);
             paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
         }
 
+        // Заливаем основной фон фрейма (он уже безопасно обрезан)
+        pixmap.fill_rect(inner_clip, &paint, tiny_skia::Transform::identity(), None);
+
         let border_thickness = if self.style == FrameStyle::FLAT { 0.0 } else { 2.0 };
         
-        if let Some(visible_part) = intersect_rects(my_rect, clip) {
-            pixmap.fill_rect(visible_part, &paint, tiny_skia::Transform::identity(), None);
-            if border_thickness != 0.0 {
-                match self.style {
-                    FrameStyle::FLAT => {}
-                    FrameStyle::RAISED => {
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+        if border_thickness != 0.0 {
+            // ЛОКАЛЬНАЯ ХЕЛПЕР-ФУНКЦИЯ: безопасно рисует линию, не вылетая за глобальный clip
+            let draw_line = |pixmap: &mut PixmapMut, x: f32, y: f32, width: f32, height: f32, paint_style: &Paint| {
+                if let Some(line_rect) = Rect::from_xywh(x, y, width, height) {
+                    if let Some(visible_line) = intersect_rects(line_rect, clip) {
+                        pixmap.fill_rect(visible_line, paint_style, tiny_skia::Transform::identity(), None);
                     }
+                }
+            };
 
-                    FrameStyle::SUNKEN => {
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
+            match self.style {
+                FrameStyle::FLAT => {}
+                FrameStyle::RAISED => {
+                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintlight);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
 
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                    }
+                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintdark);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                }
+                FrameStyle::SUNKEN => {
+                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintdark);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
 
-                    FrameStyle::GROOVE => {
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
+                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintlight);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                }
+                FrameStyle::GROOVE => {
+                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintdark);
+                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintlight);
 
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                    }
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                }
+                FrameStyle::RIDGE => {
+                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintlight);
+                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintdark);
 
-                    FrameStyle::RIDGE => {
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, w, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y, 1.0, h).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x, abs_y + h - 1.0, w, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 1.0, abs_y, 1.0, h).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintdark, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                        pixmap.fill_rect(Rect::from_xywh(abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0).unwrap(), &paintlight, tiny_skia::Transform::identity(), None);
-                    }
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintlight);
+                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
                 }
             }
         }
@@ -268,10 +321,9 @@ impl Widget for Frame {
             h - (border_thickness * 2.0)
         ).unwrap();
 
-        // Скрещиваем наш внутренний прямоугольник с глобальным клипом
         let child_clip = match intersect_rects(inner_clip, inner_rect) {
             Some(r) => r,
-            None => return, // Если внутреннее пространство полностью обрезано — детей не рендерим
+            None => return,
         };
 
         for child in &self.children {

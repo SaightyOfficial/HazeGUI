@@ -55,6 +55,20 @@ impl Color {
         self
     }
 
+    pub fn darker_by_half(mut self) -> Self {
+        self.r = self.r.saturating_sub(self.b / 2);
+        self.g = self.g.saturating_sub(self.b / 2);
+        self.b = self.b.saturating_sub(self.b / 2);
+        self
+    }
+
+    pub fn lighter_by_half(mut self) -> Self {
+        self.r = self.r.saturating_add(self.b / 2);
+        self.g = self.g.saturating_add(self.b / 2);
+        self.b = self.b.saturating_add(self.b / 2);
+        self
+    }
+
     pub fn as_u32(&self) -> u32 {
         ((self.b as u32) << 16) | ((self.g as u32) << 8) | (self.r as u32)
     }

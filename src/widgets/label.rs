@@ -35,7 +35,7 @@ impl Label {
             textcolor: Color::BLACK,
             needs_update: false,
         };
-
+        label.base.bgcolor = Color::TRANSPARENT;
         label.update_size();
         label
     }

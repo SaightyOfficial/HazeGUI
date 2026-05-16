@@ -1,4 +1,4 @@
-use haze_gui::{Win, core::{color::Color, event::Action, size::Size}, widgets::{button::Button, label::Label}};
+use haze_gui::{Win, core::{color::Color, common::Side, event::Action, size::Size}, widgets::{button::Button, frame::{Frame, FrameStyle}, label::Label}};
 
 
 /* 
@@ -20,21 +20,29 @@ fn main() {
     
     let text = Label::new("counter_text".to_string())
         .text(root.state.click_count.to_string())
+        .side(Side::MIDDLE)
         .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
         
     let buttonadd = Button::new("add".to_string())
         .text("+1")
         .textcolor(Color::WHITE)
+        .side(Side::RIGHT)
         .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
 
     let buttonsub = Button::new("sub".to_string())
         .text("-1")
         .textcolor(Color::WHITE)
+        .side(Side::LEFT)
         .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
+
+    let mut frame = Frame::new("frame".into())
+        .style(FrameStyle::SUNKEN);
     
-    root.mainframe.add_widget(text);     //Adding counter label to main frame
-    root.mainframe.add_widget(buttonadd);//Adding add button to main frame
-    root.mainframe.add_widget(buttonsub);//Adding substract button to main frame
+    frame.add_widget(text);     //Adding counter label to main frame
+    frame.add_widget(buttonadd);//Adding add button to main frame
+    frame.add_widget(buttonsub);//Adding substract button to main frame
+
+    root.mainframe.add_widget(frame);
 
     root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
@@ -46,10 +54,6 @@ fn main() {
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
                             label.new_text(state.click_count.to_string()); //changing label text
                             //mainframe.style = FrameStyle::GROOVE;
-                            let text = Label::new("aaa".to_string())
-                                .text("Gavno".to_string())
-                                .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
-                            mainframe.add_widget(text);
                         }
                     }
                 }

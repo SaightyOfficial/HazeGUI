@@ -55,7 +55,7 @@ fn main() {
                     }
                 }
             }
-            _ => {}// ignoring other signals such as Acrion::None
+            _ => {}// ignoring other signals such as Action::None and Action::Hovered
         }
     });
 }
