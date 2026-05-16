@@ -4,7 +4,7 @@ use crate::core::{color::Color, pos::Pos};
 use crate::core::widget::Widget;
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use crate::core::common::LayoutStrat;
+use crate::core::common::{LayoutStrat, SizeStrat};
 use tiny_skia::{PixmapMut, Rect};
 
 pub struct Button {
@@ -90,6 +90,9 @@ impl Widget for Button {
 
     fn get_layout_strat(&self) -> LayoutStrat {
         self.frame.get_layout_strat()
+    }
+    fn get_size_strat(&self) -> SizeStrat {
+        self.frame.get_size_strat()
     }
     /*
     fn handle_event(&mut self, event: &Event, pos_off: Pos) -> bool {

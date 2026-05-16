@@ -1,7 +1,7 @@
 use crate::core::size::Size;
 use crate::core::event::{Action, Event};
 use crate::core::{color::Color, pos::Pos};
-use crate::core::common::ChooseCords;
+use crate::core::common::{ChooseCords, SizeStrat};
 use crate::core::widget::{Widget, WidgetBase};
 use tiny_skia::{PixmapMut, Paint, Rect, Color as SkiaColor};
 
@@ -189,6 +189,9 @@ impl Widget for Label {
     }
     fn get_layout_strat(&self) -> LayoutStrat {
         self.base.layoutstrat.clone()
+    }
+    fn get_size_strat(&self) -> SizeStrat {
+        self.base.sizestrat.clone()
     }
     fn set_size(&mut self, size_new: Size) {
         self.base.size.width = size_new.width; self.base.size.height = size_new.height;

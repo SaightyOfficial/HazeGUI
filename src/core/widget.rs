@@ -75,5 +75,6 @@ pub trait Widget: Any {
         )
     }
     fn get_layout_strat(&self) -> LayoutStrat;
+    fn get_size_strat(&self) -> SizeStrat;
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>);
 }
