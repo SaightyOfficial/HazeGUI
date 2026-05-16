@@ -127,7 +127,6 @@ impl Widget for Label {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
 
-        // 1. Отрисовка фона
         if let Some(bg_rect) = Rect::from_xywh(abs_x, abs_y, self.base.size.width as f32, self.base.size.height as f32) {
             let mut bg_paint = Paint::default();
             bg_paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
@@ -136,9 +135,13 @@ impl Widget for Label {
             }
         }
 
-        // 2. Отрисовка текста
         let mut x_cursor = abs_x + 2.0;
         let baseline = abs_y + (self.base.size.height as f32 * 0.75); 
+
+        let img_w = pixmap.width() as i32;
+        let img_h = pixmap.height() as i32;
+        
+        let pixels = pixmap.pixels_mut();
 
         for c in self.text.chars() {
             if c == ' ' {
@@ -150,29 +153,61 @@ impl Widget for Label {
             let (metrics, bitmap) = JETBRAINS_FONT.rasterize(c, self.font_size);
 
             if metrics.width > 0 && metrics.height > 0 {
-                let px_base = x_cursor + metrics.xmin as f32;
-                let py_base = baseline - metrics.height as f32 - metrics.ymin as f32;
+                let px_base = (x_cursor + metrics.xmin as f32).round() as i32;
+                let py_base = (baseline - metrics.height as f32 - metrics.ymin as f32).round() as i32;
 
                 for row in 0..metrics.height {
-                    for col in 0..metrics.width {
-                        let alpha = bitmap[row * metrics.width + col];
-                        if alpha > 0 {
-                            let px = (px_base + col as f32).round();
-                            let py = (py_base + row as f32).round();
+                    let screen_y = py_base + row as i32;
+                    
+                    if screen_y < clip.top() as i32 || screen_y >= clip.bottom() as i32 || screen_y < 0 || screen_y >= img_h {
+                        continue;
+                    }
 
-                            // Рисуем точку только если она попадает в clip
-                            if let Some(r) = Rect::from_xywh(px, py, 1.0, 1.0) {
-                                if let Some(visible_pixel) = intersect_rects(r, clip) {
-                                    let mut p = Paint::default();
-                                    // Используем честный цвет и альфу из шрифта
-                                    p.set_color(SkiaColor::from_rgba8(
-                                        self.textcolor.b, 
-                                        self.textcolor.g, 
-                                        self.textcolor.r, 
-                                        alpha
-                                    ));
-                                    pixmap.fill_rect(visible_pixel, &p, tiny_skia::Transform::identity(), None);
-                                }
+                    for col in 0..metrics.width {
+                        let screen_x = px_base + col as i32;
+
+                        if screen_x < clip.left() as i32 || screen_x >= clip.right() as i32 || screen_x < 0 || screen_x >= img_w {
+                            continue;
+                        }
+
+                        let alpha = bitmap[row * metrics.width + col] as u32;
+                        if alpha == 0 { continue; }
+
+                        let pixel_idx = (screen_y * img_w + screen_x) as usize;
+
+                        let fg_color = tiny_skia::ColorU8::from_rgba(
+                            self.textcolor.r,
+                            self.textcolor.g,
+                            self.textcolor.b,
+                            alpha as u8
+                        ).premultiply();
+
+                        if alpha == 255 {
+                            pixels[pixel_idx] = fg_color;
+                        } else {
+                            let bg_color = pixels[pixel_idx];
+                            let bg_a = bg_color.alpha() as u32;
+                            let bg_r = bg_color.red() as u32;
+                            let bg_g = bg_color.green() as u32;
+                            let bg_b = bg_color.blue() as u32;
+
+                            let fg_a = fg_color.alpha() as u32;
+                            let fg_r = fg_color.red() as u32;
+                            let fg_g = fg_color.green() as u32;
+                            let fg_b = fg_color.blue() as u32;
+
+                            let out_a = fg_a + (bg_a * (255 - fg_a) / 255);
+                            let out_r = fg_r + (bg_r * (255 - fg_a) / 255);
+                            let out_g = fg_g + (bg_g * (255 - fg_a) / 255);
+                            let out_b = fg_b + (bg_b * (255 - fg_a) / 255);
+
+                            if let Some(blended) = tiny_skia::PremultipliedColorU8::from_rgba(
+                                out_r as u8,
+                                out_g as u8,
+                                out_b as u8,
+                                out_a as u8,
+                            ) {
+                                pixels[pixel_idx] = blended;
                             }
                         }
                     }
@@ -202,8 +237,6 @@ impl Widget for Label {
     fn handle_event(&mut self, event: &Event, pos_off: Pos, ) -> Action {
         if let Event::MouseClick { pos } = event {
             if self.is_point_inside(*pos, pos_off) {
-                // Если это просто текст, обычно возвращаем false, 
-                // чтобы клик прошел "сквозь" него к фону.
                 return Action::None; 
             }
         }

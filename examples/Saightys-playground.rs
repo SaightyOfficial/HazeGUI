@@ -46,6 +46,10 @@ fn main() {
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() { //assuming that what we are found is an label
                             label.new_text(state.click_count.to_string()); //changing label text
                             //mainframe.style = FrameStyle::GROOVE;
+                            let text = Label::new("aaa".to_string())
+                                .text("Gavno".to_string())
+                                .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
+                            mainframe.add_widget(text);
                         }
                     }
                 }

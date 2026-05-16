@@ -33,7 +33,7 @@ fn main() {
 
     root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
-            Action::ButtonReleased(id) => { //proccesing action that buttons send when they are clicked
+            Action::ButtonReleased(id) => { //proccesing action that buttons send when they are released
                 if id == "add" { // checking button id
                     state.click_count += 1; //changing counter data
                     
