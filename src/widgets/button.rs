@@ -11,6 +11,7 @@ pub struct Button {
     pub id: String,
     pub frame: Frame,
     pub text: Label,
+    pub hover_color: Option<Color>,
     is_hovered:bool,
     is_pressed:bool,
 }
@@ -21,6 +22,7 @@ impl Button {
             id: id.clone(),
             frame: Frame::new(format!("{}.frame", id.clone())).style(FrameStyle::RAISED),
             text: Label::new(format!("{}.label", id.clone())).bgcolor(Color::TRANSPARENT),
+            hover_color: None,
             is_hovered: false,
             is_pressed: false,
         }
@@ -37,8 +39,14 @@ impl Button {
         //println!("{:?}", self.frame.base.bgcolor.clone());
         self
     }
+
     pub fn textcolor(mut self, new_color: Color) -> Self {
         self.text.textcolor = new_color;
+        self
+    }
+
+    pub fn hovercolor(mut self, new_color: Color) -> Self {
+        self.hover_color = Some(new_color);
         self
     }
 }
@@ -46,23 +54,25 @@ impl Button {
 impl Widget for Button {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
     fn get_id(&self) -> &str { &self.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect) {
-        //let display_color = if self.is_hovered {
-        //    self.frame.base.bgcolor.clone().lighter(30)
-        //} else {
-        //    self.frame.base.bgcolor.clone()
-        //};
+    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+        let display_color = if self.is_hovered {
+            let hover_color = self.hover_color
+                .unwrap_or_else(|| self.frame.base.bgcolor.lighter(25));
+            hover_color
+        } else {
+            self.frame.base.bgcolor
+        };
 
-        //println!("{:?}", self.frame.base.bgcolor.clone());
+        //println!("{:?}", display_color);
 
-        self.frame.draw(pixmap, pos_off, clip);
+        self.frame.draw(pixmap, pos_off, clip, Some(display_color));
     }
 
     fn update_layout(&mut self) {
         self.frame.children.clear();
         
         self.text.update_size(); 
-        //println!("wid{} hei{}", self.frame.base.size.width.clone(), self.frame.base.size.height.clone());
+        //println!("wid{} hei{}", self.frame.base.size.width, self.frame.base.size.height);
         
         let text_size = self.text.get_size();
         self.frame.set_size(text_size); 

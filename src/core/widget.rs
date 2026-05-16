@@ -50,7 +50,7 @@ impl WidgetBase {
 pub trait Widget: Any {
     fn get_id(&self) -> &str;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, rect: Rect);
+    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>);
     fn is_point_inside(&self, global_point: Pos, parent_off: Pos) -> bool {
         let abs_x = parent_off.x + self.get_pos().x;
         let abs_y = parent_off.y + self.get_pos().y;

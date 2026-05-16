@@ -123,6 +123,7 @@ impl<T> ApplicationHandler for Win<T> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                //println!("Redrawing!");
                 if let (Some(window), Some(surface)) = (&self.window, &mut self.surface) {
                     let size = window.inner_size();
                     
@@ -144,7 +145,7 @@ impl<T> ApplicationHandler for Win<T> {
                             self.mainframe.base.size.height as f32
                         ).unwrap();
 
-                        self.mainframe.draw(&mut pixmap, Pos::new(0, 0), window_rect);
+                        self.mainframe.draw(&mut pixmap, Pos::new(0, 0), window_rect,None);
 
                         buffer.present().unwrap();
                     }

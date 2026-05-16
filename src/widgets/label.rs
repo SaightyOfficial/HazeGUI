@@ -123,7 +123,7 @@ impl Label {
 impl Widget for Label {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
     fn get_id(&self) -> &str { &self.base.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect) {
+    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
 
@@ -214,7 +214,7 @@ impl Widget for Label {
         if self.needs_update {
             actions.push(Action::UpdateLayoutRequest);
             actions.push(Action::RedrawRequest);
-            println!("RedrawRequest");
+            //println!("RedrawRequest");
             self.needs_update = false;
         } else {
             actions.push(Action::None);

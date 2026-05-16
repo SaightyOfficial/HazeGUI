@@ -1,5 +1,11 @@
 use haze_gui::{Win, core::{color::Color, event::Action, size::Size}, widgets::{button::Button, label::Label}};
 
+
+/* 
+NOTE: This file is just for my tests while im working on this lib,
+there will be from small to no comments and this file will change a lot
+*/
+
 //creating appstate
 pub struct AppState {
     pub click_count: i32,
@@ -11,7 +17,6 @@ fn main() {
     
     root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size
-    root.resizable(false); //Can window be resized?
     
     let text = Label::new("counter_text".to_string())
         .text(root.state.click_count.to_string())

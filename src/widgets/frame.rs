@@ -24,6 +24,7 @@ pub struct Frame {
     pub usedmiddle: UsedCord,
     pub usedright: UsedCord,
     pub totalused: UsedCord,
+    pub lightchangeamount: u8,
 }
 
 impl Frame {
@@ -36,6 +37,7 @@ impl Frame {
             usedleft: UsedCord::default(),
             usedright: UsedCord::default(),
             totalused: UsedCord::default(),
+            lightchangeamount: 60,
         }
     }
 
@@ -76,6 +78,11 @@ impl Frame {
 
     pub fn style(mut self, style: FrameStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    pub fn set_lightchangeamount(mut self, amount:u8) -> Self {
+        self.lightchangeamount = amount;
         self
     }
 
@@ -153,7 +160,7 @@ impl Frame {
 impl Widget for Frame {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
     fn get_id(&self) -> &str { &self.base.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect) {
+    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>) {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
         let w = self.base.size.width as f32;
@@ -173,15 +180,26 @@ impl Widget for Frame {
 
         //BGRA is needed here
         let mut paint = Paint::default();
-        paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
-
         let mut paintdark = Paint::default();
-        let darkercolor = self.base.bgcolor.clone().darker(75);
-        paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
-
         let mut paintlight = Paint::default();
-        let lightercolor = self.base.bgcolor.clone().lighter(75);
-        paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+        if preferred_color.is_some() {
+            let preferred_color_done = preferred_color.unwrap();
+            paint.set_color(SkiaColor::from_rgba8(preferred_color_done.b, preferred_color_done.g, preferred_color_done.r, preferred_color_done.a));
+
+            let darkercolor = preferred_color_done.darker(self.lightchangeamount);
+            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
+            
+            let lightercolor = preferred_color_done.lighter(self.lightchangeamount);
+            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+        } else {
+            paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+
+            let darkercolor = self.base.bgcolor.darker(self.lightchangeamount);
+            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
+
+            let lightercolor = self.base.bgcolor.lighter(self.lightchangeamount);
+            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+        }
 
         let border_thickness = if self.style == FrameStyle::FLAT { 0.0 } else { 2.0 };
         
@@ -257,7 +275,7 @@ impl Widget for Frame {
         };
 
         for child in &self.children {
-            child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), child_clip);
+            child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), child_clip, None);
         }
     }
     fn get_size(&self) -> Size {
