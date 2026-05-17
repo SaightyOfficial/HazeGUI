@@ -13,6 +13,6 @@ pub enum Action {
     ButtonReleased(String),
     Hovered(String),
     Unhovered(String),
-    RedrawRequest,
+    RedrawRequest(Option<tiny_skia::Rect>),
     UpdateLayoutRequest,
 }

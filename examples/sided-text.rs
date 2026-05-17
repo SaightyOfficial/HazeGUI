@@ -1,11 +1,11 @@
-use haze_gui::{Win, core::{color::Color, common::Side, size::Size}, widgets::{frame::{Frame, FrameStyle}, label::Label}};
+use haze_gui::{Win, core::{color::Color, common::{RenderStrategy, Side}, size::Size}, widgets::{frame::{Frame, FrameStyle}, label::Label}};
 
 pub struct AppState {}
 
 fn main() {
     let init_state = AppState {}; //initializing appstate
-    let mut root = Win::new(init_state); // Creating window
-    
+    let mut root = Win::new(init_state, RenderStrategy::CpuOptimized); // Creating window, note that on desktop pcs it is better to use cpu optimized render strategy
+
     root.title("HazeGUI Sides"); //Setting window title
     root.geometry(Size::new(300, 300)); //Setting window size
     

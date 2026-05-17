@@ -25,6 +25,7 @@ pub struct Frame {
     pub usedright: UsedCord,
     pub totalused: UsedCord,
     pub lightchangeamount: u8,
+    pub vecpushedactions: Vec<Action>,
 }
 
 impl Frame {
@@ -38,6 +39,7 @@ impl Frame {
             usedright: UsedCord::default(),
             totalused: UsedCord::default(),
             lightchangeamount: 60,
+            vecpushedactions: Vec::new(),
         }
     }
 
@@ -189,12 +191,21 @@ impl Frame {
         }
     }
 
+    pub fn set_style(&mut self, style: FrameStyle) {
+        self.style = style;
+        if self.style != FrameStyle::FLAT && style != FrameStyle::FLAT{
+            self.update_layout(false);
+        }
+        self.set_dirty_flag(true);
+    }
     pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) {
         self.children.push(Box::new(widget));
         self.update_layout(false);
+        self.set_dirty_flag(true);
     }
 
     pub fn remove_widget(&mut self, target_id: &str) -> bool {
+        self.set_dirty_flag(true);
         let old_len = self.children.len();
 
         self.children.retain(|child| child.get_id() != target_id);
@@ -205,6 +216,10 @@ impl Frame {
         }
 
         false
+    }
+
+    pub fn push_action(&mut self, action: Action) {
+        self.vecpushedactions.push(action);
     }
 }
 
@@ -224,7 +239,7 @@ impl Widget for Frame {
             None => return,
         };
 
-        // Настраиваем цвета (BGRA)
+        //BGRA colors needed
         let mut paint = Paint::default();
         let mut paintdark = Paint::default();
         let mut paintlight = Paint::default();
@@ -243,13 +258,12 @@ impl Widget for Frame {
             paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
         }
 
-        // Заливаем основной фон фрейма (он уже безопасно обрезан)
         pixmap.fill_rect(inner_clip, &paint, tiny_skia::Transform::identity(), None);
 
         let border_thickness = if self.style == FrameStyle::FLAT { 0.0 } else { 2.0 };
         
         if border_thickness != 0.0 {
-            // ЛОКАЛЬНАЯ ХЕЛПЕР-ФУНКЦИЯ: безопасно рисует линию, не вылетая за глобальный clip
+            //Safe line rendering that is not going outide of clip
             let draw_line = |pixmap: &mut PixmapMut, x: f32, y: f32, width: f32, height: f32, paint_style: &Paint| {
                 if let Some(line_rect) = Rect::from_xywh(x, y, width, height) {
                     if let Some(visible_line) = intersect_rects(line_rect, clip) {
@@ -341,6 +355,17 @@ impl Widget for Frame {
     fn set_pos(&mut self, pos_new: Pos) {
         self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
     }
+    fn is_dirty(&self) -> bool {
+        self.base.is_dirty
+    }
+    fn set_dirty_flag(&mut self, flag: bool) {
+        self.base.is_dirty = flag;
+        if flag == false {
+            for widget in &mut self.children {
+                widget.set_relayout_flag(flag);
+            }
+        }
+    }
     fn update_layout(&mut self, forced: bool) {
         for child in &mut self.children {
             child.update_layout(false);
@@ -374,6 +399,15 @@ impl Widget for Frame {
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         let my_global_pos = self.get_global_pos(pos_off);
+        if self.is_dirty() {
+            if let Some(dirty_rect) = self.get_self_rect(pos_off) {
+                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+            }
+        }
+        for action in &self.vecpushedactions {
+            actions.push(action.clone());
+        }
+        self.vecpushedactions.clear();
         for child in self.children.iter_mut().rev() {
             child.handle_event(event, my_global_pos, actions);
         }

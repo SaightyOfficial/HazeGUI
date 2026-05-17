@@ -33,6 +33,7 @@ pub struct WidgetBase {
     pub layoutstrat: LayoutStrat,
     pub sizestrat: SizeStrat,
     pub needs_relayout: bool,
+    pub is_dirty: bool,
 }
 
 impl WidgetBase {
@@ -45,6 +46,7 @@ impl WidgetBase {
             layoutstrat: LayoutStrat::default(),
             sizestrat: SizeStrat::default(),
             needs_relayout: true,
+            is_dirty: false,
         }
     }
 }
@@ -65,11 +67,22 @@ pub trait Widget: Any {
     }
     fn on_click(&mut self) {}
     fn on_hover(&mut self) {}
-    #[allow(unused_variables)] //We need that because of "forced" variable that is not being used but it cant be "_forced" so we do that allow
+    #[allow(unused_variables)] //We need that because of "forced" variable that is not being used but it cant be "_forced"
     fn update_layout(&mut self, forced: bool) {}
     fn set_size(&mut self, size: Size);
     fn set_pos(&mut self, pos: Pos);
     fn get_size(&self) -> Size;
+    fn get_self_rect(&self, pos_off: Pos) -> Option<tiny_skia::Rect> {
+        let abs_x = (pos_off.x + self.get_pos().x) as f32;
+        let abs_y = (pos_off.y + self.get_pos().y) as f32;
+        let size = self.get_size();
+        if let Some(dirty_rect) = tiny_skia::Rect::from_xywh(abs_x, abs_y, size.width as f32, size.height as f32) {
+            return Some(dirty_rect);
+        }
+        None
+    }
+    fn is_dirty(&self) -> bool;
+    fn set_dirty_flag(&mut self, flag: bool);
     fn get_pos(&self) -> Pos;
     fn get_global_pos(&self, parent_off: Pos) -> Pos {
         Pos::new(

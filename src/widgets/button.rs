@@ -133,50 +133,32 @@ impl Widget for Button {
     fn set_pos(&mut self, pos: Pos) { 
         self.frame.base.pos = pos; 
     }
-
     fn get_size(&self) -> Size {
         self.frame.get_size()
     }
-
     fn get_pos(&self) -> Pos {
         self.frame.get_pos()
     }
-
     fn get_layout_strat(&self) -> LayoutStrat {
         self.frame.get_layout_strat()
     }
     fn get_size_strat(&self) -> SizeStrat {
         self.frame.get_size_strat()
     }
-    /*
-    fn handle_event(&mut self, event: &Event, pos_off: Pos) -> bool {
-        match event {
-            Event::MouseClick { pos } => {
-                if self.is_point_inside(*pos, pos_off) {
-                    self.on_click(); // Вызываем наш метод с lock()
-                    return true;
+    fn is_dirty(&self) -> bool {
+        self.text.is_dirty() || self.frame.is_dirty()
+    }
+    fn set_dirty_flag(&mut self, flag: bool) {
+        self.frame.base.is_dirty = flag;
+        if flag == false {
+            self.text.base.is_dirty = false;
+            if let Some(widget) = self.frame.find_mut(&self.text.base.id) {
+                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
+                    widget.set_dirty_flag(false);
                 }
-            }
-            Event::MouseMove { pos } => {
-                let currently_inside = self.is_point_inside(*pos, pos_off);
-                
-                // Если мышка только что зашла в зону кнопки
-                if currently_inside && !self.is_hovered {
-                    self.is_hovered = true;
-                    self.on_hover(); // Вызываем коллбэк ховера один раз
-                    return true;
-                } 
-                // Если мышка вышла из зоны кнопки
-                else if !currently_inside && self.is_hovered {
-                    self.is_hovered = false;
-                }
-
-                // Если мы просто внутри — возвращаем true, чтобы клик под кнопкой не сработал
-                if currently_inside { return true; }
             }
         }
-        false
-    }*/
+    }
     fn needs_relayout(&self) -> bool {
         self.frame.base.needs_relayout || self.text.base.needs_relayout
     }
@@ -188,16 +170,16 @@ impl Widget for Button {
         match event {
             Event::MouseClick { pos } => {
                 if self.is_point_inside(*pos, pos_off) {
-                    self.frame.style = FrameStyle::SUNKEN;
                     self.is_pressed = true;
                     actions.push(Action::ButtonClicked(self.id.clone()));
+                    self.frame.set_style(FrameStyle::SUNKEN);
                 }
             }
             Event::MouseRelease { pos } => {
                 if self.is_point_inside(*pos, pos_off) {
-                    self.frame.style = FrameStyle::RAISED;
                     self.is_pressed = false;
                     actions.push(Action::ButtonReleased(self.id.clone()));
+                    self.frame.set_style(FrameStyle::RAISED);
                 }
             }
             Event::MouseMove { pos } => {
@@ -205,13 +187,21 @@ impl Widget for Button {
                 if now_hovered && !self.is_hovered {
                     self.is_hovered = true;
                     actions.push(Action::Hovered(self.id.clone()));
+                    self.set_dirty_flag(true);
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
-                    self.frame.style = FrameStyle::RAISED;
+                    self.frame.set_style(FrameStyle::RAISED);
                     self.is_pressed = false;
                     actions.push(Action::Unhovered(self.id.clone()));
+                    self.set_dirty_flag(true);
                 }
             }
+        }
+        if self.is_dirty() {
+            if let Some(dirty_rect) = self.get_self_rect(pos_off) {
+                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+            }
+            self.set_dirty_flag(false);
         }
     }
 }

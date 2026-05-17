@@ -30,6 +30,12 @@ pub enum ChooseCords {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RenderStrategy {
+    CpuOptimized, 
+    RamOptimized, 
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SizeStrat {
     pub method: SizeEnum,
     pub fill: ChooseCords,
@@ -64,4 +70,12 @@ pub fn intersect_rects(a: Rect, b: Rect) -> Option<Rect> {
     } else {
         None
     }
+}
+
+pub fn merge_rects(a: tiny_skia::Rect, b: tiny_skia::Rect) -> tiny_skia::Rect {
+    let left = a.left().min(b.left());
+    let top = a.top().min(b.top());
+    let right = a.right().max(b.right());
+    let bottom = a.bottom().max(b.bottom());
+    tiny_skia::Rect::from_xywh(left, top, right - left, bottom - top).unwrap()
 }

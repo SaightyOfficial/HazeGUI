@@ -1,4 +1,4 @@
-use haze_gui::{Win, core::{color::Color, event::Action, size::Size}, widgets::{button::Button, label::Label}};
+use haze_gui::{Win, core::{color::Color, common::RenderStrategy, event::Action, size::Size}, widgets::{button::Button, label::Label}};
 
 //creating appstate
 pub struct AppState {
@@ -7,7 +7,7 @@ pub struct AppState {
 
 fn main() {
     let init_state = AppState { click_count: 0 }; //initializing appstate
-    let mut root = Win::new(init_state); // Creating window
+    let mut root = Win::new(init_state, RenderStrategy::CpuOptimized); // Creating window, note that on desktop pcs it is better to use cpu optimized render strategy
     
     root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size

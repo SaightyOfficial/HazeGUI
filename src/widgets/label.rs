@@ -76,13 +76,14 @@ impl Label {
     pub fn new_text(&mut self, new_text: String) {
         self.text = new_text.split("\n").map(String::from).collect();
         self.update_size();
-        self.set_relayout_flag(true);
+        self.set_dirty_flag(true);
     }
 
     pub fn set_font_size(&mut self, size:f32) {
         self.font_size = size;
         self.update_size();
         self.set_relayout_flag(true);
+        self.set_dirty_flag(true);
     }
 
     //positions
@@ -259,7 +260,14 @@ impl Widget for Label {
     }
     fn set_pos(&mut self, pos_new: Pos) {
         self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
-    }/*
+    }
+    fn is_dirty(&self) -> bool {
+        self.base.is_dirty
+    }
+    fn set_dirty_flag(&mut self, flag: bool) {
+        self.base.is_dirty = flag;
+    }
+    /*
     fn handle_event(&mut self, event: &Event, pos_off: Pos, ) -> Action {
         if let Event::MouseClick { pos } = event {
             if self.is_point_inside(*pos, pos_off) {
@@ -274,9 +282,14 @@ impl Widget for Label {
     fn set_relayout_flag(&mut self, flag: bool) {
         self.base.needs_relayout = flag;
     }
-    fn handle_event(&mut self, _event: &Event, _pos_off: Pos, _actions: &mut Vec<Action>) {
+    fn handle_event(&mut self, _event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
+        if self.is_dirty() {
+            if let Some(dirty_rect) = self.get_self_rect(pos_off) {
+                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+            }
+        }
         if self.needs_relayout() {
             self.set_relayout_flag(false);
-        }  
+        }
     }
 }

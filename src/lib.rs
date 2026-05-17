@@ -3,9 +3,8 @@ pub mod widgets;
 
 use core::color::Color;
 use core::widget::Widget;
-use crate::core::{pos::Pos, size::Size, event::Action};
-
-use tiny_skia::Rect;
+use core::common::merge_rects;
+use crate::core::{common::RenderStrategy, event::Action, pos::Pos, size::Size};
 use widgets::frame;
 
 use winit::{
@@ -21,8 +20,11 @@ use std::sync::Arc;
 type UserCallback<T> = Box<dyn FnMut(&Action, &mut frame::Frame, &mut T)>;
 
 pub struct Win<T> {
+    start_flag: bool,
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
+    backbuffer: Option<tiny_skia::Pixmap>,
+    renderstrat: RenderStrategy,
     title: String,
     pub mainframe: frame::Frame,
     winsize: Size,
@@ -31,17 +33,21 @@ pub struct Win<T> {
     resizable: bool,
     mouse_pos: Pos,
     pub state: T,
+    dirty_rect: Option<Option<tiny_skia::Rect>>,
     user_cb: Option<UserCallback<T>>,
 }
 
 impl<T> Win<T> {
-    pub fn new(init_state: T) -> Self {
+    pub fn new(init_state: T, renderstrat_given: RenderStrategy) -> Self {
         let mut mainframe_setter = frame::Frame::new("mainframe".to_string()).pos(Pos::new(0, 0)).size(Size::new(800, 600)).color(Color::LIGHT_GRAY);
         mainframe_setter.set_relayout_flag(true);
         Self { 
+            start_flag: true,
             title: String::from("HazeGUI window"), 
             window: None, 
             surface: None,
+            backbuffer: None,
+            renderstrat: renderstrat_given,
             mainframe: mainframe_setter,
             winsize: Size::new(800, 600),
             minsize: None,
@@ -49,6 +55,7 @@ impl<T> Win<T> {
             resizable: true,
             mouse_pos: Pos::new(0, 0),
             state: init_state,
+            dirty_rect: Some(None),
             user_cb: None,
         }
     }
@@ -114,11 +121,19 @@ impl<T> ApplicationHandler for Win<T> {
         
         let context = Context::new(window.clone()).unwrap();
         let surface = Surface::new(&context, window.clone()).unwrap();
+        if self.renderstrat == RenderStrategy::CpuOptimized{
+            self.backbuffer = tiny_skia::Pixmap::new(self.winsize.width as u32, self.winsize.height as u32);
+        }
 
         self.window = Some(window);
         self.surface = Some(surface);
 
         self.mainframe.update_layout(true);
+
+        self.dirty_rect = Some(None);
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -127,45 +142,74 @@ impl<T> ApplicationHandler for Win<T> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                //println!("Redrawing!");
-                if let (Some(window), Some(surface)) = (&self.window, &mut self.surface) {
-                    let size = window.inner_size();
-                    
-                    if let (Some(w), Some(h)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) {
-                        surface.resize(w, h).unwrap();
-                        
-                        let mut buffer = surface.buffer_mut().unwrap();
+                println!("Redrawing");
+                if let Some(surface) = &mut self.surface {
+                    let mut buffer = surface.buffer_mut().unwrap();
+                    match self.renderstrat {
+                        RenderStrategy::CpuOptimized => {
+                            if let (Some(backbuffer), Some(dirty_type)) = (&mut self.backbuffer, self.dirty_rect.take()) {
+                                let clip_rect = match dirty_type {
+                                    Some(rect) => rect,
+                                    None => tiny_skia::Rect::from_xywh(0.0, 0.0, self.winsize.width as f32, self.winsize.height as f32).unwrap()
+                                };
 
-                        let mut pixmap = tiny_skia::PixmapMut::from_bytes(
-                            bytemuck::cast_slice_mut(&mut buffer),
-                            size.width,
-                            size.height,
-                        ).unwrap();
+                                println!("{:?}", clip_rect);
 
-                        let window_rect = Rect::from_xywh(
-                            0.0, 
-                            0.0, 
-                            self.mainframe.base.size.width as f32, 
-                            self.mainframe.base.size.height as f32
-                        ).unwrap();
+                                let mut paint = tiny_skia::Paint::default();
+                                paint.set_color(tiny_skia::Color::from_rgba8(211, 211, 211, 255));
+                                backbuffer.fill_rect(clip_rect, &paint, tiny_skia::Transform::identity(), None);
 
-                        self.mainframe.draw(&mut pixmap, Pos::new(0, 0), window_rect,None);
+                                self.mainframe.draw(&mut backbuffer.as_mut(), Pos::new(0, 0), clip_rect, None);
 
-                        buffer.present().unwrap();
+                                buffer.copy_from_slice(bytemuck::cast_slice(backbuffer.data()));
+                            }
+                        }
+                        RenderStrategy::RamOptimized => {
+                            self.dirty_rect = None;
+                            self.backbuffer = None;
+                            let full_rect = tiny_skia::Rect::from_xywh(0.0, 0.0, self.winsize.width as f32, self.winsize.height as f32).unwrap();
+
+                            let mut os_pixmap = tiny_skia::PixmapMut::from_bytes(
+                                bytemuck::cast_slice_mut(&mut buffer),
+                                self.winsize.width as u32,
+                                self.winsize.height as u32
+                            ).unwrap();
+
+                            let mut paint = tiny_skia::Paint::default();
+                            paint.set_color(tiny_skia::Color::from_rgba8(211, 211, 211, 255));
+                            os_pixmap.fill_rect(full_rect, &paint, tiny_skia::Transform::identity(), None);
+
+                            self.mainframe.draw(&mut os_pixmap, Pos::new(0, 0), full_rect, None);
+                        }
                     }
+                    self.mainframe.set_dirty_flag(false);
+                    self.dirty_rect = None;
+                    buffer.present().unwrap();
                 }
             }
             WindowEvent::Resized(new_size) => {
                 self.winsize = Size::new(new_size.width as i32, new_size.height as i32);
                 self.mainframe.base.size = self.winsize;
-
                 self.mainframe.update_layout(true);
+
+                if new_size.width > 0 && new_size.height > 0 {
+
+                    if self.renderstrat == RenderStrategy::CpuOptimized { self.backbuffer = tiny_skia::Pixmap::new(new_size.width, new_size.height); }
+                    
+                    if let Some(surface) = &mut self.surface {
+                        surface.resize(
+                            NonZeroU32::new(new_size.width).unwrap(),
+                            NonZeroU32::new(new_size.height).unwrap()
+                        ).unwrap();
+                    }
+                }
+                
+                self.dirty_rect = Some(None);
                 
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
-
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == winit::event::MouseButton::Left && state == winit::event::ElementState::Pressed {
                     let click_event = crate::core::event::Event::MouseClick { pos: self.mouse_pos };
@@ -187,12 +231,22 @@ impl<T> ApplicationHandler for Win<T> {
         }
 
         if !actions.is_empty() {
-            let mut onlynone = true;
             if let Some(mut cb) = self.user_cb.take() {
                 for action in &actions {
                     //println!("Sended action: {:?}", action);
-                    if *action != Action::None {
-                        onlynone = false;
+                    if let Action::RedrawRequest(maybe_rect) = action {
+                        match (self.dirty_rect, maybe_rect) {
+                            //Full window
+                            (Some(None), _) => {},
+                            //Setting full window
+                            (_, None) => self.dirty_rect = Some(None),
+                            //New dirty rect
+                            (None, Some(rect)) => self.dirty_rect = Some(Some(*rect)),
+                            //Merging dirty rect
+                            (Some(Some(current_rect)), Some(new_rect)) => {
+                                self.dirty_rect = Some(Some(merge_rects(current_rect, *new_rect)));
+                            }
+                        }
                     }
                     cb(action, &mut self.mainframe, &mut self.state);
                 }
@@ -202,14 +256,14 @@ impl<T> ApplicationHandler for Win<T> {
             let needs_layout = self.mainframe.needs_relayout() || actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
 
             if needs_layout {
-                //println!("Relayout");
+                println!("Relayout");
                 self.mainframe.update_layout(true);
                 self.mainframe.set_relayout_flag(false);
             }
 
             //self.mainframe.update_layout();
-            if let Some(window) = &self.window {
-                if !onlynone || needs_layout {
+            if self.dirty_rect.is_some() || needs_layout {
+                if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
@@ -217,9 +271,12 @@ impl<T> ApplicationHandler for Win<T> {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        //if let Some(window) = &self.window {
-        //    window.request_redraw();
-        //}
+        if self.start_flag == true {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+                self.start_flag = false;
+            }
+        }
     }
 }
 
