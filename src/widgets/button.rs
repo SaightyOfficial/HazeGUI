@@ -29,7 +29,7 @@ impl Button {
     }
     pub fn text(mut self, new_text: &str) -> Self {
         self.text.text = new_text.to_string();
-        self.update_layout();
+        self.update_layout(false);
         self
     }
 
@@ -112,7 +112,7 @@ impl Widget for Button {
         self.frame.draw(pixmap, pos_off, clip, Some(display_color));
     }
 
-    fn update_layout(&mut self) {
+    fn update_layout(&mut self, forced: bool) {
         self.frame.children.clear();
         
         self.text.update_size(); 
@@ -123,12 +123,12 @@ impl Widget for Button {
         
         self.frame.add_widget(self.text.clone());
         
-        self.frame.update_layout();
+        self.frame.update_layout(forced);
     }
 
     fn set_size(&mut self, size: Size) { 
         self.frame.base.size = size; 
-        self.update_layout(); 
+        self.update_layout(false); 
     }
     fn set_pos(&mut self, pos: Pos) { 
         self.frame.base.pos = pos; 
@@ -177,6 +177,13 @@ impl Widget for Button {
         }
         false
     }*/
+    fn needs_relayout(&self) -> bool {
+        self.frame.base.needs_relayout || self.text.base.needs_relayout
+    }
+    fn set_relayout_flag(&mut self, flag: bool) {
+        self.frame.set_relayout_flag(flag);
+        self.text.base.needs_relayout = flag;
+    }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         match event {
             Event::MouseClick { pos } => {

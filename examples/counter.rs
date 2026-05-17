@@ -11,14 +11,14 @@ fn main() {
     
     root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size
-    root.resizable(false); //Can window be resized?
+    //root.resizable(false); //Can window be resized?
     
     let text = Label::new("counter_text".to_string())
         .text(root.state.click_count.to_string())
         .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
         
     let buttonadd = Button::new("add".to_string())
-        .text("+1")
+        .text("+1\n a")
         .textcolor(Color::WHITE)
         .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
 

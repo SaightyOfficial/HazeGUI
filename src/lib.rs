@@ -36,11 +36,13 @@ pub struct Win<T> {
 
 impl<T> Win<T> {
     pub fn new(init_state: T) -> Self {
+        let mut mainframe_setter = frame::Frame::new("mainframe".to_string()).pos(Pos::new(0, 0)).size(Size::new(800, 600)).color(Color::LIGHT_GRAY);
+        mainframe_setter.set_relayout_flag(true);
         Self { 
             title: String::from("HazeGUI window"), 
             window: None, 
             surface: None,
-            mainframe: frame::Frame::new("mainframe".to_string()).pos(Pos::new(0, 0)).size(Size::new(800, 600)).color(Color::LIGHT_GRAY),
+            mainframe: mainframe_setter,
             winsize: Size::new(800, 600),
             minsize: None,
             maxsize: None,
@@ -115,6 +117,8 @@ impl<T> ApplicationHandler for Win<T> {
 
         self.window = Some(window);
         self.surface = Some(surface);
+
+        self.mainframe.update_layout(true);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -155,7 +159,7 @@ impl<T> ApplicationHandler for Win<T> {
                 self.winsize = Size::new(new_size.width as i32, new_size.height as i32);
                 self.mainframe.base.size = self.winsize;
 
-                self.mainframe.update_layout();
+                self.mainframe.update_layout(true);
                 
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -186,6 +190,7 @@ impl<T> ApplicationHandler for Win<T> {
             let mut onlynone = true;
             if let Some(mut cb) = self.user_cb.take() {
                 for action in &actions {
+                    //println!("Sended action: {:?}", action);
                     if *action != Action::None {
                         onlynone = false;
                     }
@@ -194,15 +199,17 @@ impl<T> ApplicationHandler for Win<T> {
                 self.user_cb = Some(cb);
             }
 
-            let needs_layout = actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
+            let needs_layout = self.mainframe.needs_relayout() || actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
 
             if needs_layout {
-                self.mainframe.update_layout();
+                //println!("Relayout");
+                self.mainframe.update_layout(true);
+                self.mainframe.set_relayout_flag(false);
             }
 
-            self.mainframe.update_layout();
+            //self.mainframe.update_layout();
             if let Some(window) = &self.window {
-                if !onlynone {
+                if !onlynone || needs_layout {
                     window.request_redraw();
                 }
             }

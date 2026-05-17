@@ -23,7 +23,6 @@ pub struct Label {
     pub text: String,
     pub font_size: f32,
     pub textcolor: Color,
-    pub needs_update: bool,
 }
 
 impl Label {
@@ -33,7 +32,6 @@ impl Label {
             text: String::new(),
             font_size: 14.0,
             textcolor: Color::BLACK,
-            needs_update: false,
         };
         label.base.bgcolor = Color::TRANSPARENT;
         label.update_size();
@@ -55,7 +53,7 @@ impl Label {
 
         self.base.size = Size::new((width + 4.0) as i32, height as i32);
         if old_size.width != self.base.size.width || old_size.height != self.base.size.height {
-            self.needs_update = true;
+            self.set_relayout_flag(true);
         }
     }
 
@@ -68,6 +66,7 @@ impl Label {
     pub fn new_text(&mut self, new_text: String) {
         self.text = new_text;
         self.update_size();
+        self.set_relayout_flag(true);
     }
 
     //positions
@@ -242,15 +241,15 @@ impl Widget for Label {
         }
         Action::None
     }*/
-
-    fn handle_event(&mut self, _event: &Event, _pos_off: Pos, actions: &mut Vec<Action>) {
-        if self.needs_update {
-            actions.push(Action::UpdateLayoutRequest);
-            actions.push(Action::RedrawRequest);
-            //println!("RedrawRequest");
-            self.needs_update = false;
-        } else {
-            actions.push(Action::None);
-        }   
+    fn needs_relayout(&self) -> bool {
+        self.base.needs_relayout
+    }
+    fn set_relayout_flag(&mut self, flag: bool) {
+        self.base.needs_relayout = flag;
+    }
+    fn handle_event(&mut self, _event: &Event, _pos_off: Pos, _actions: &mut Vec<Action>) {
+        if self.needs_relayout() {
+            self.set_relayout_flag(false);
+        }  
     }
 }

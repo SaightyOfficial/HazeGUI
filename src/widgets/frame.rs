@@ -123,7 +123,7 @@ impl Frame {
 
         // --- ПРОХОД 1: Собираем статистику по всем трёх коридорам ---
         for child in &mut self.children {
-            child.update_layout(); 
+            child.update_layout(true); 
             let child_size = child.get_size();
             let layoutstrat = child.get_layout_strat();
             
@@ -198,7 +198,7 @@ impl Frame {
 
     pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) {
         self.children.push(Box::new(widget));
-        self.update_layout();
+        self.update_layout(false);
     }
 
     pub fn remove_widget(&mut self, target_id: &str) -> bool {
@@ -207,7 +207,7 @@ impl Frame {
         self.children.retain(|child| child.get_id() != target_id);
 
         if self.children.len() < old_len {
-            self.update_layout();
+            self.update_layout(false);
             return true;
         }
 
@@ -348,11 +348,36 @@ impl Widget for Frame {
     fn set_pos(&mut self, pos_new: Pos) {
         self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
     }
-    fn update_layout(&mut self) {
+    fn update_layout(&mut self, forced: bool) {
         for child in &mut self.children {
-            child.update_layout();
+            child.update_layout(false);
+        }
+        if !forced {
+            if !self.needs_relayout() {
+                return;
+            }
         }
         self.refresh_layout();
+        self.set_relayout_flag(false);
+    }
+    fn needs_relayout(&self) -> bool {
+        let mut needed = false;
+        if self.base.needs_relayout == true {
+            return true;
+        }
+        for widget in &self.children {
+            needed = needed || widget.needs_relayout();
+        }
+        needed
+    }
+    fn set_relayout_flag(&mut self, flag: bool) {
+        self.base.needs_relayout = flag;
+        if flag == false {
+            for widget in &mut self.children {
+                widget.set_relayout_flag(flag);
+            }
+        }
+        //println!("Set frag to {} by \"{}\"", flag, self.get_id()); 
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         let my_global_pos = self.get_global_pos(pos_off);
