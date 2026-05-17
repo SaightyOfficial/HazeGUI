@@ -113,7 +113,6 @@ impl Frame {
         self.usedmiddle.used_y = 0;
         self.usedright.used_y = 0;
         
-        // Трекеры максимальной ширины для каждой стороны
         let mut max_left_width = 0;
         let mut max_middle_width = 0;
         let mut max_right_width = 0;
@@ -121,7 +120,6 @@ impl Frame {
         let border_thickness = if self.style == FrameStyle::FLAT { 0 } else { 2 };
         let border_padding = border_thickness * 2;
 
-        // --- ПРОХОД 1: Собираем статистику по всем трёх коридорам ---
         for child in &mut self.children {
             child.update_layout(true); 
             let child_size = child.get_size();
@@ -143,27 +141,22 @@ impl Frame {
                     }
                 }
             } else {
-                // На случай MANUAL виджетов, чтобы они тоже не ломали общую логику
                 if child_size.width > max_middle_width { max_middle_width = child_size.width; }
             }
         }
 
-        // Финальная требуемая ширина — это сумма максимумов всех трёх сторон!
         let required_width = max_left_width + max_middle_width + max_right_width + border_padding;
 
-        // Высота — по самому длинному коридору
         let max_corridor_height = self.usedleft.used_y
             .max(self.usedmiddle.used_y)
             .max(self.usedright.used_y);
         let required_height = max_corridor_height + border_padding;
 
-        // Если у фрейма стоит AUTO-размер, выставляем честно посчитанные значения
         if self.get_size_strat().method == SizeEnum::AUTO {
             self.base.size.width = required_width;
             self.base.size.height = required_height;
         }
 
-        // --- ПРОХОД 2: Расставляем виджеты по местам (код остаётся старым) ---
         let parent_width = self.base.size.width - border_padding;
 
         self.usedleft.used_y = border_thickness;
@@ -377,7 +370,7 @@ impl Widget for Frame {
                 widget.set_relayout_flag(flag);
             }
         }
-        //println!("Set frag to {} by \"{}\"", flag, self.get_id()); 
+        //println!("Set flag to {} by \"{}\"", flag, self.get_id()); 
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         let my_global_pos = self.get_global_pos(pos_off);

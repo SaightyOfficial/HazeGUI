@@ -28,13 +28,13 @@ impl Button {
         }
     }
     pub fn text(mut self, new_text: &str) -> Self {
-        self.text.text = new_text.to_string();
+        self.text.new_text(new_text.into());
         self.update_layout(false);
         self
     }
 
     pub fn new_text(&mut self, new_text: String) {
-        self.text.text = new_text;
+        self.text.new_text(new_text);
         self.text.update_size();
     }
 

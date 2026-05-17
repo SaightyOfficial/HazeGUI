@@ -18,7 +18,7 @@ fn main() {
         .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
         
     let buttonadd = Button::new("add".to_string())
-        .text("+1\n a")
+        .text("+1")
         .textcolor(Color::WHITE)
         .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
 

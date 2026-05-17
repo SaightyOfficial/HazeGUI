@@ -19,30 +19,20 @@ fn main() {
     root.geometry(Size::new(400, 400)); //Setting window size
     
     let text = Label::new("counter_text".to_string())
-        .text(root.state.click_count.to_string())
-        .side(Side::MIDDLE)
+        .text("lsd;akkl;asdkdl;sasadlk;sadkl;sdalk;sadkl;sdakl;asdkl;dskl;adskl;asdkl;daskl;asdkl;dskla;lk;asdkl;daskl;sadkl;asdkl;asd
+    lkhaskdjhsdklhgsdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhgsdfkjhgsdfkjhgsd
+    lsd;akkl;asdkdl;sasadlk;sadkl;sdalk;sadkl;sdakl;asdkl;dskl;adskl;asdkl;daskl;asdkl;dskla;lk;asdkl;daskl;sadkl;asdkl;asd
+    lkhaskdjhsdklhgsdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhgsdfkjhgsdfkjhgsd
+    lsd;akkl;asdkdl;sasadlk;sadkl;sdalk;sadkl;sdakl;asdkl;dskl;adskl;asdkl;daskl;asdkl;dskla;lk;asdkl;daskl;sadkl;asdkl;asd
+    lkhaskdjhsdklhgsdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhgsdfkjhgsdfkjhgsd
+    lsd;akkl;asdkdl;sasadlk;sadkl;sdalk;sadkl;sdakl;asdkl;dskl;adskl;asdkl;daskl;asdkl;dskla;lk;asdkl;daskl;sadkl;asdkl;asd
+    lkhaskdjhsdklhgsdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhgsdfkjhgsdfkjhgsd
+    lsd;akkl;asdkdl;sasadlk;sadkl;sdalk;sadkl;sdakl;asdkl;dskl;adskl;asdkl;daskl;asdkl;dskla;lk;asdkl;daskl;sadkl;asdkl;asd
+    lkhaskdjhsdklhgsdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhsgdfkjhgsdfkjhgsdfkjhgsd".into())
+        .font_size(10.0)
         .bgcolor(Color::TRANSPARENT);//Setting up label with id, text, and background text color
-        
-    let buttonadd = Button::new("add".to_string())
-        .text("+1")
-        .textcolor(Color::WHITE)
-        .side(Side::RIGHT)
-        .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
-
-    let buttonsub = Button::new("sub".to_string())
-        .text("-1")
-        .textcolor(Color::WHITE)
-        .side(Side::LEFT)
-        .color(Color::DARK_GRAY);//Setting up button with id, text, and background color
-
-    let mut frame = Frame::new("frame".into())
-        .style(FrameStyle::SUNKEN);
     
-    frame.add_widget(text);     //Adding counter label to main frame
-    frame.add_widget(buttonadd);//Adding add button to main frame
-    frame.add_widget(buttonsub);//Adding substract button to main frame
-
-    root.mainframe.add_widget(frame);
+    root.mainframe.add_widget(text);     //Adding counter label to main frame
 
     root.mainloop(|action, mainframe, state| { //Mainloop where you procces events
         match action {
