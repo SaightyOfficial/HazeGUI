@@ -145,6 +145,13 @@ impl Widget for Label {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
 
+        println!(
+            "LABEL DRAW: id={}, text={:?}, abs_pos=({}, {}), size=({}, {}), clip=({}, {}, {}, {})",
+            self.base.id, self.text, abs_x, abs_y, 
+            self.base.size.width, self.base.size.height,
+            clip.left(), clip.top(), clip.right(), clip.bottom()
+        );
+
         if let Some(bg_rect) = Rect::from_xywh(abs_x, abs_y, self.base.size.width as f32, self.base.size.height as f32) {
             let mut bg_paint = Paint::default();
             bg_paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
@@ -282,14 +289,18 @@ impl Widget for Label {
     fn set_relayout_flag(&mut self, flag: bool) {
         self.base.needs_relayout = flag;
     }
+    fn update_layout(&mut self, _forced: bool) {}
     fn handle_event(&mut self, _event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
+        if self.needs_relayout() {
+            self.set_relayout_flag(false);
+        }
+    }
+    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
         if self.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 actions.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-        }
-        if self.needs_relayout() {
-            self.set_relayout_flag(false);
+            self.set_dirty_flag(false);
         }
     }
 }

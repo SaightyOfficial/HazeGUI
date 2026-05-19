@@ -356,13 +356,13 @@ impl Widget for Frame {
         self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
     }
     fn is_dirty(&self) -> bool {
-        self.base.is_dirty
+        self.base.is_dirty || self.children.iter().any(|c| c.is_dirty())
     }
     fn set_dirty_flag(&mut self, flag: bool) {
         self.base.is_dirty = flag;
         if flag == false {
             for widget in &mut self.children {
-                widget.set_relayout_flag(flag);
+                widget.set_dirty_flag(flag);
             }
         }
     }
@@ -399,17 +399,30 @@ impl Widget for Frame {
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         let my_global_pos = self.get_global_pos(pos_off);
-        if self.is_dirty() {
-            if let Some(dirty_rect) = self.get_self_rect(pos_off) {
-                actions.push(Action::RedrawRequest(Some(dirty_rect)));
-            }
-        }
         for action in &self.vecpushedactions {
             actions.push(action.clone());
         }
         self.vecpushedactions.clear();
         for child in self.children.iter_mut().rev() {
             child.handle_event(event, my_global_pos, actions);
+        }
+    }
+    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
+        // 1. Проверяем, грязный ли ИМЕННО ЭТОТ фрейм (его собственный бэкграунд/границы)
+        // Если у тебя в WidgetBase есть свой флаг, лучше проверить его, 
+        // но если проверяешь self.base.is_dirty:
+        if self.base.is_dirty { 
+            if let Some(dirty_rect) = self.get_self_rect(pos_off) {
+                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+            }
+            self.base.is_dirty = false; // сбрасываем флаг ТОЛЬКО у фрейма
+        }
+
+        // 2. В ЛЮБОМ СЛУЧАЕ идем в детей, потому что они могут быть грязными,
+        // даже если сам фрейм чистый, или если фрейм был грязным из-за них.
+        let my_global_pos = self.get_global_pos(pos_off);
+        for child in &mut self.children {
+            child.get_dirty_rect(my_global_pos, actions);
         }
     }
 }

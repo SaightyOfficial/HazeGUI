@@ -149,15 +149,8 @@ impl Widget for Button {
         self.text.is_dirty() || self.frame.is_dirty()
     }
     fn set_dirty_flag(&mut self, flag: bool) {
-        self.frame.base.is_dirty = flag;
-        if flag == false {
-            self.text.base.is_dirty = false;
-            if let Some(widget) = self.frame.find_mut(&self.text.base.id) {
-                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    widget.set_dirty_flag(false);
-                }
-            }
-        }
+        self.frame.set_dirty_flag(flag);
+        self.text.base.is_dirty = flag;
     }
     fn needs_relayout(&self) -> bool {
         self.frame.base.needs_relayout || self.text.base.needs_relayout
@@ -197,6 +190,8 @@ impl Widget for Button {
                 }
             }
         }
+    }
+    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
         if self.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 actions.push(Action::RedrawRequest(Some(dirty_rect)));

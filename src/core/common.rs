@@ -4,8 +4,6 @@ use tiny_skia::Rect;
 pub enum LayoutEnum {
     MANUAL,
     AUTO,
-    SIDEAUTO,
-    GRID,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

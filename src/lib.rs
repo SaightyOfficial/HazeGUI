@@ -20,7 +20,7 @@ use std::sync::Arc;
 type UserCallback<T> = Box<dyn FnMut(&Action, &mut frame::Frame, &mut T)>;
 
 pub struct Win<T> {
-    start_flag: bool,
+    start_num: i32,
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
     backbuffer: Option<tiny_skia::Pixmap>,
@@ -35,6 +35,7 @@ pub struct Win<T> {
     pub state: T,
     dirty_rect: Option<Option<tiny_skia::Rect>>,
     user_cb: Option<UserCallback<T>>,
+    debug_thing: u32,
 }
 
 impl<T> Win<T> {
@@ -42,7 +43,7 @@ impl<T> Win<T> {
         let mut mainframe_setter = frame::Frame::new("mainframe".to_string()).pos(Pos::new(0, 0)).size(Size::new(800, 600)).color(Color::LIGHT_GRAY);
         mainframe_setter.set_relayout_flag(true);
         Self { 
-            start_flag: true,
+            start_num: 0,
             title: String::from("HazeGUI window"), 
             window: None, 
             surface: None,
@@ -57,6 +58,7 @@ impl<T> Win<T> {
             state: init_state,
             dirty_rect: Some(None),
             user_cb: None,
+            debug_thing: 0,
         }
     }
 
@@ -142,7 +144,8 @@ impl<T> ApplicationHandler for Win<T> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                println!("Redrawing");
+                self.debug_thing += 1;
+                println!("Redrawing {}", self.debug_thing);
                 if let Some(surface) = &mut self.surface {
                     let mut buffer = surface.buffer_mut().unwrap();
                     match self.renderstrat {
@@ -155,10 +158,6 @@ impl<T> ApplicationHandler for Win<T> {
 
                                 println!("{:?}", clip_rect);
 
-                                let mut paint = tiny_skia::Paint::default();
-                                paint.set_color(tiny_skia::Color::from_rgba8(211, 211, 211, 255));
-                                backbuffer.fill_rect(clip_rect, &paint, tiny_skia::Transform::identity(), None);
-
                                 self.mainframe.draw(&mut backbuffer.as_mut(), Pos::new(0, 0), clip_rect, None);
 
                                 buffer.copy_from_slice(bytemuck::cast_slice(backbuffer.data()));
@@ -169,23 +168,19 @@ impl<T> ApplicationHandler for Win<T> {
                             self.backbuffer = None;
                             let full_rect = tiny_skia::Rect::from_xywh(0.0, 0.0, self.winsize.width as f32, self.winsize.height as f32).unwrap();
 
-                            let mut os_pixmap = tiny_skia::PixmapMut::from_bytes(
+                            let mut pixmap = tiny_skia::PixmapMut::from_bytes(
                                 bytemuck::cast_slice_mut(&mut buffer),
                                 self.winsize.width as u32,
                                 self.winsize.height as u32
                             ).unwrap();
 
-                            let mut paint = tiny_skia::Paint::default();
-                            paint.set_color(tiny_skia::Color::from_rgba8(211, 211, 211, 255));
-                            os_pixmap.fill_rect(full_rect, &paint, tiny_skia::Transform::identity(), None);
-
-                            self.mainframe.draw(&mut os_pixmap, Pos::new(0, 0), full_rect, None);
+                            self.mainframe.draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
                         }
                     }
-                    self.mainframe.set_dirty_flag(false);
-                    self.dirty_rect = None;
                     buffer.present().unwrap();
                 }
+                self.mainframe.set_dirty_flag(false);
+                self.dirty_rect = None;
             }
             WindowEvent::Resized(new_size) => {
                 self.winsize = Size::new(new_size.width as i32, new_size.height as i32);
@@ -193,6 +188,7 @@ impl<T> ApplicationHandler for Win<T> {
                 self.mainframe.update_layout(true);
 
                 if new_size.width > 0 && new_size.height > 0 {
+                    self.backbuffer = None;
 
                     if self.renderstrat == RenderStrategy::CpuOptimized { self.backbuffer = tiny_skia::Pixmap::new(new_size.width, new_size.height); }
                     
@@ -232,49 +228,53 @@ impl<T> ApplicationHandler for Win<T> {
 
         if !actions.is_empty() {
             if let Some(mut cb) = self.user_cb.take() {
-                for action in &actions {
-                    //println!("Sended action: {:?}", action);
-                    if let Action::RedrawRequest(maybe_rect) = action {
-                        match (self.dirty_rect, maybe_rect) {
-                            //Full window
-                            (Some(None), _) => {},
-                            //Setting full window
-                            (_, None) => self.dirty_rect = Some(None),
-                            //New dirty rect
-                            (None, Some(rect)) => self.dirty_rect = Some(Some(*rect)),
-                            //Merging dirty rect
-                            (Some(Some(current_rect)), Some(new_rect)) => {
-                                self.dirty_rect = Some(Some(merge_rects(current_rect, *new_rect)));
-                            }
-                        }
-                    }
+                let current_actions = actions.clone(); 
+                for action in &current_actions {
                     cb(action, &mut self.mainframe, &mut self.state);
                 }
                 self.user_cb = Some(cb);
             }
+        }
 
-            let needs_layout = self.mainframe.needs_relayout() || actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
+        let mut redraw_actions = Vec::new();
+        self.mainframe.get_dirty_rect(Pos::new(0, 0), &mut redraw_actions);
 
-            if needs_layout {
-                println!("Relayout");
-                self.mainframe.update_layout(true);
-                self.mainframe.set_relayout_flag(false);
-            }
-
-            //self.mainframe.update_layout();
-            if self.dirty_rect.is_some() || needs_layout {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
+        if !redraw_actions.is_empty() {
+            for action in &redraw_actions {
+                if let Action::RedrawRequest(maybe_rect) = action {
+                    match (self.dirty_rect, maybe_rect) {
+                        (Some(None), _) => {},
+                        (_, None) => self.dirty_rect = Some(None),
+                        (None, Some(rect)) => self.dirty_rect = Some(Some(*rect)),
+                        (Some(Some(current_rect)), Some(new_rect)) => {
+                            self.dirty_rect = Some(Some(merge_rects(current_rect, *new_rect)));
+                        }
+                    }
                 }
+            }
+        }
+
+        let needs_layout = self.mainframe.needs_relayout() || actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
+
+        if needs_layout {
+            println!("Relayout");
+            self.mainframe.update_layout(true);
+            self.mainframe.set_relayout_flag(false);
+        }
+
+        if self.dirty_rect.is_some() || needs_layout {
+            if let Some(window) = &self.window {
+                window.request_redraw();
             }
         }
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if self.start_flag == true {
+        if self.start_num < 5 {
             if let Some(window) = &self.window {
+                self.dirty_rect = Some(None);
                 window.request_redraw();
-                self.start_flag = false;
+                self.start_num += 1;
             }
         }
     }

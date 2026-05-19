@@ -46,7 +46,7 @@ impl WidgetBase {
             layoutstrat: LayoutStrat::default(),
             sizestrat: SizeStrat::default(),
             needs_relayout: true,
-            is_dirty: false,
+            is_dirty: true,
         }
     }
 }
@@ -68,7 +68,7 @@ pub trait Widget: Any {
     fn on_click(&mut self) {}
     fn on_hover(&mut self) {}
     #[allow(unused_variables)] //We need that because of "forced" variable that is not being used but it cant be "_forced"
-    fn update_layout(&mut self, forced: bool) {}
+    fn update_layout(&mut self, forced: bool);
     fn set_size(&mut self, size: Size);
     fn set_pos(&mut self, pos: Pos);
     fn get_size(&self) -> Size;
@@ -94,5 +94,6 @@ pub trait Widget: Any {
     fn get_size_strat(&self) -> SizeStrat;
     fn needs_relayout(&self) -> bool;
     fn set_relayout_flag(&mut self, flag: bool);
+    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>);
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>);
 }
