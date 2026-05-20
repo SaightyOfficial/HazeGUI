@@ -9,6 +9,7 @@ pub enum LayoutEnum {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SizeEnum {
     MANUAL,
+    FILL,
     AUTO,
 }
 
@@ -37,11 +38,18 @@ pub enum RenderStrategy {
 pub struct SizeStrat {
     pub method: SizeEnum,
     pub fill: ChooseCords,
+    pub max_width: Option<i32>,
+    pub max_height: Option<i32>,
 }
 
 impl Default for SizeStrat {
     fn default() -> Self {
-        Self { method: SizeEnum::AUTO, fill: ChooseCords::NONE }
+        Self {
+            method: SizeEnum::AUTO,
+            fill: ChooseCords::NONE,
+            max_height: None,
+            max_width: None,
+        }
     }
 }
 

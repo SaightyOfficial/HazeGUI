@@ -4,7 +4,7 @@ use crate::core::{color::Color, pos::Pos};
 use crate::core::widget::Widget;
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeStrat};
+use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use tiny_skia::{PixmapMut, Rect};
 
 pub struct Button {
@@ -71,16 +71,25 @@ impl Button {
     //sizes
     pub fn fill_x(mut self) -> Self {
         self.frame.base.sizestrat.fill = ChooseCords::X;
+        self.frame.base.sizestrat.method = SizeEnum::FILL;
         self
     }
 
     pub fn fill_y(mut self) -> Self {
         self.frame.base.sizestrat.fill = ChooseCords::Y;
+        self.frame.base.sizestrat.method = SizeEnum::FILL;
         self
     }
 
     pub fn fill_both(mut self) -> Self {
         self.frame.base.sizestrat.fill = ChooseCords::BOTH;
+        self.frame.base.sizestrat.method = SizeEnum::FILL;
+        self
+    }
+
+    pub fn fill_none(mut self) -> Self {
+        self.frame.base.sizestrat.fill = ChooseCords::NONE;
+        self.frame.base.sizestrat.method = SizeEnum::AUTO;
         self
     }
 
@@ -92,6 +101,21 @@ impl Button {
     pub fn font_size(mut self, size: f32) -> Self {
         self.text.font_size = size;
         self
+    }
+
+    pub fn max_size(mut self, w: Option<i32>, h: Option<i32>) -> Self {
+        self.frame.base.sizestrat.max_width = w;
+        self.frame.base.sizestrat.max_height = h;
+        self
+    }
+
+    pub fn set_max_size(&mut self, w: Option<Option<i32>>, h: Option<Option<i32>>) {
+        if let Some(width) = w {
+            self.frame.base.sizestrat.max_width = width;
+        }
+        if let Some(height) = h {
+            self.frame.base.sizestrat.max_height = height;
+        }
     }
 }
 
@@ -116,10 +140,13 @@ impl Widget for Button {
         self.frame.children.clear();
         
         self.text.update_size(); 
-        //println!("wid{} hei{}", self.frame.base.size.width, self.frame.base.size.height);
         
-        let text_size = self.text.get_size();
-        self.frame.set_size(text_size); 
+        if self.frame.get_size_strat().method == SizeEnum::AUTO {
+            let text_size = self.text.get_size();
+            self.frame.base.size = text_size; 
+        }
+        
+        self.text.base.layoutstrat.side = Side::MIDDLE;
         
         self.frame.add_widget(self.text.clone());
         

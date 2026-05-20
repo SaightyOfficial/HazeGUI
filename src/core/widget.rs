@@ -13,6 +13,7 @@ use crate::core::event::Event;
 pub struct UsedCord {
     pub used_y: i32,
     pub used_x: i32,
+    pub fill_widgets: i32,
 }
 
 impl Default for UsedCord {
@@ -20,6 +21,7 @@ impl Default for UsedCord {
         Self{
             used_x: 0,
             used_y: 0,
+            fill_widgets: 0,
         }
     }
 }

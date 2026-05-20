@@ -23,7 +23,7 @@ pub struct Frame {
     pub usedleft: UsedCord,
     pub usedmiddle: UsedCord,
     pub usedright: UsedCord,
-    pub totalused: UsedCord,
+    pub usedtotal: UsedCord,
     pub lightchangeamount: u8,
     pub vecpushedactions: Vec<Action>,
 }
@@ -37,7 +37,7 @@ impl Frame {
             usedmiddle: UsedCord::default(),
             usedleft: UsedCord::default(),
             usedright: UsedCord::default(),
-            totalused: UsedCord::default(),
+            usedtotal: UsedCord::default(),
             lightchangeamount: 60,
             vecpushedactions: Vec::new(),
         }
@@ -83,24 +83,42 @@ impl Frame {
         self
     }
 
-    pub fn set_lightchangeamount(mut self, amount:u8) -> Self {
+    pub fn set_color(&mut self, color: Color) {
+        self.base.bgcolor = color;
+        self.set_dirty_flag(true);
+    }
+
+    pub fn lightchangeamount(mut self, amount:u8) -> Self {
         self.lightchangeamount = amount;
         self
+    }
+    pub fn set_lightchangeamount(&mut self, amount:u8) {
+        self.lightchangeamount = amount;
+        self.set_dirty_flag(true);
     }
 
     //sizes
     pub fn fill_x(mut self) -> Self {
         self.base.sizestrat.fill = ChooseCords::X;
+        self.base.sizestrat.method = SizeEnum::FILL;
         self
     }
 
     pub fn fill_y(mut self) -> Self {
         self.base.sizestrat.fill = ChooseCords::Y;
+        self.base.sizestrat.method = SizeEnum::FILL;
         self
     }
 
     pub fn fill_both(mut self) -> Self {
         self.base.sizestrat.fill = ChooseCords::BOTH;
+        self.base.sizestrat.method = SizeEnum::FILL;
+        self
+    }
+
+    pub fn fill_none(mut self) -> Self {
+        self.base.sizestrat.fill = ChooseCords::NONE;
+        self.base.sizestrat.method = SizeEnum::AUTO;
         self
     }
 
@@ -110,10 +128,26 @@ impl Frame {
         self
     }
 
+    pub fn max_size(mut self, w: Option<i32>, h: Option<i32>) -> Self {
+        self.base.sizestrat.max_width = w;
+        self.base.sizestrat.max_height = h;
+        self
+    }
+
+    pub fn set_max_size(&mut self, w: Option<Option<i32>>, h: Option<Option<i32>>) {
+        if let Some(width) = w {
+            self.base.sizestrat.max_width = width;
+        }
+        if let Some(height) = h {
+            self.base.sizestrat.max_height = height;
+        }
+    }
+
     pub fn refresh_layout(&mut self) {
-        self.usedleft.used_y = 0;
-        self.usedmiddle.used_y = 0;
-        self.usedright.used_y = 0;
+        self.usedleft = UsedCord::default();
+        self.usedmiddle = UsedCord::default();
+        self.usedright = UsedCord::default();
+        self.usedtotal = UsedCord::default();
         
         let mut max_left_width = 0;
         let mut max_middle_width = 0;
@@ -126,29 +160,42 @@ impl Frame {
             child.update_layout(true); 
             let child_size = child.get_size();
             let layoutstrat = child.get_layout_strat();
+            let sizestrat = child.get_size_strat();
+
+            let is_fill_y = sizestrat.method == SizeEnum::FILL 
+                && (sizestrat.fill == ChooseCords::Y || sizestrat.fill == ChooseCords::BOTH);
             
             if layoutstrat.method == LayoutEnum::AUTO {
                 match layoutstrat.side {
                     Side::LEFT => {
                         if child_size.width > max_left_width { max_left_width = child_size.width; }
-                        self.usedleft.used_y += child_size.height;
+                        if is_fill_y { 
+                            self.usedleft.fill_widgets += 1; 
+                        } else { 
+                            self.usedleft.used_y += child_size.height; 
+                        }
                     }
                     Side::MIDDLE => {
                         if child_size.width > max_middle_width { max_middle_width = child_size.width; }
-                        self.usedmiddle.used_y += child_size.height;
+                        if is_fill_y { 
+                            self.usedmiddle.fill_widgets += 1; 
+                        } else { 
+                            self.usedmiddle.used_y += child_size.height; 
+                        }
                     }
                     Side::RIGHT => {
                         if child_size.width > max_right_width { max_right_width = child_size.width; }
-                        self.usedright.used_y += child_size.height;
+                        if is_fill_y { 
+                            self.usedright.fill_widgets += 1; 
+                        } else { 
+                            self.usedright.used_y += child_size.height; 
+                        }
                     }
                 }
-            } else {
-                if child_size.width > max_middle_width { max_middle_width = child_size.width; }
             }
         }
 
         let required_width = max_left_width + max_middle_width + max_right_width + border_padding;
-
         let max_corridor_height = self.usedleft.used_y
             .max(self.usedmiddle.used_y)
             .max(self.usedright.used_y);
@@ -160,16 +207,73 @@ impl Frame {
         }
 
         let parent_width = self.base.size.width - border_padding;
+        let parent_height = self.base.size.height - border_padding;
+
+        let fill_left_h = if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y {
+            (parent_height - self.usedleft.used_y) / self.usedleft.fill_widgets
+        } else { 0 };
+
+        let fill_middle_h = if self.usedmiddle.fill_widgets > 0 && parent_height > self.usedmiddle.used_y {
+            (parent_height - self.usedmiddle.used_y) / self.usedmiddle.fill_widgets
+        } else { 0 };
+
+        let fill_right_h = if self.usedright.fill_widgets > 0 && parent_height > self.usedright.used_y {
+            (parent_height - self.usedright.used_y) / self.usedright.fill_widgets
+        } else { 0 };
 
         self.usedleft.used_y = border_thickness;
         self.usedmiddle.used_y = border_thickness;
         self.usedright.used_y = border_thickness;
 
+        let middle_allowed_width = if parent_width > (max_left_width + max_right_width) {
+            parent_width - max_left_width - max_right_width
+        } else { 0 };
+
         for child in &mut self.children {
             let layoutstrat = child.get_layout_strat();
-            let child_size = child.get_size();
+            let sizestrat = child.get_size_strat();
+            let mut child_size = child.get_size();
+
+            let is_fill_x = sizestrat.method == SizeEnum::FILL 
+                && (sizestrat.fill == ChooseCords::X || sizestrat.fill == ChooseCords::BOTH);
+            let is_fill_y = sizestrat.method == SizeEnum::FILL 
+                && (sizestrat.fill == ChooseCords::Y || sizestrat.fill == ChooseCords::BOTH);
 
             if layoutstrat.method == LayoutEnum::AUTO {
+                if is_fill_y {
+                    match layoutstrat.side {
+                        Side::LEFT => child_size.height = fill_left_h,
+                        Side::MIDDLE => child_size.height = fill_middle_h,
+                        Side::RIGHT => child_size.height = fill_right_h,
+                    }
+                }
+                
+                if is_fill_x {
+                    match layoutstrat.side {
+                        Side::LEFT => child_size.width = max_left_width,
+                        Side::MIDDLE => child_size.width = middle_allowed_width,
+                        Side::RIGHT => child_size.width = max_right_width,
+                    }
+                }
+
+                if is_fill_x || is_fill_y {
+                    let sizestrat = child.get_size_strat();
+
+                    if let Some(max_w) = sizestrat.max_width {
+                        if child_size.width > max_w {
+                            child_size.width = max_w;
+                        }
+                    }
+
+                    if let Some(max_h) = sizestrat.max_height {
+                        if child_size.height > max_h {
+                            child_size.height = max_h;
+                        }
+                    }
+
+                    child.set_size(child_size);
+                }
+
                 match layoutstrat.side {
                     Side::LEFT => {
                         let x_pos = border_thickness;
@@ -177,7 +281,9 @@ impl Frame {
                         self.usedleft.used_y += child_size.height;
                     }
                     Side::MIDDLE => {
-                        let x_pos = border_thickness + (parent_width - child_size.width) / 2;
+                        let center_zone_start = border_thickness + max_left_width;
+                        let x_pos = center_zone_start + (middle_allowed_width - child_size.width) / 2;
+                        
                         child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
                         self.usedmiddle.used_y += child_size.height;
                     }
@@ -350,7 +456,11 @@ impl Widget for Frame {
         self.base.sizestrat.clone()
     }
     fn set_size(&mut self, size_new: Size) {
-        self.base.size.width = size_new.width; self.base.size.height = size_new.height;
+        if self.base.size.width != size_new.width || self.base.size.height != size_new.height {
+            self.base.size.width = size_new.width; 
+            self.base.size.height = size_new.height;
+            //self.refresh_layout(); 
+        }
     }
     fn set_pos(&mut self, pos_new: Pos) {
         self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
@@ -408,18 +518,13 @@ impl Widget for Frame {
         }
     }
     fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
-        // 1. Проверяем, грязный ли ИМЕННО ЭТОТ фрейм (его собственный бэкграунд/границы)
-        // Если у тебя в WidgetBase есть свой флаг, лучше проверить его, 
-        // но если проверяешь self.base.is_dirty:
         if self.base.is_dirty { 
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 actions.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-            self.base.is_dirty = false; // сбрасываем флаг ТОЛЬКО у фрейма
+            self.base.is_dirty = false;
         }
 
-        // 2. В ЛЮБОМ СЛУЧАЕ идем в детей, потому что они могут быть грязными,
-        // даже если сам фрейм чистый, или если фрейм был грязным из-за них.
         let my_global_pos = self.get_global_pos(pos_off);
         for child in &mut self.children {
             child.get_dirty_rect(my_global_pos, actions);

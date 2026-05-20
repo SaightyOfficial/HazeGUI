@@ -1,7 +1,7 @@
 use crate::core::size::Size;
 use crate::core::event::{Action, Event};
 use crate::core::{color::Color, pos::Pos};
-use crate::core::common::{ChooseCords, SizeStrat};
+use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
 use crate::core::widget::{Widget, WidgetBase};
 use tiny_skia::{PixmapMut, Paint, Rect, Color as SkiaColor};
 
@@ -86,6 +86,16 @@ impl Label {
         self.set_dirty_flag(true);
     }
 
+    pub fn set_color(&mut self, color: Color) {
+        self.textcolor = color;
+        self.set_dirty_flag(true);
+    }
+
+    pub fn set_bgcolor(&mut self, color: Color) {
+        self.base.bgcolor = color;
+        self.set_dirty_flag(true);
+    }
+
     //positions
     pub fn pos(mut self, posnew: Pos) -> Self {
         self.base.pos = posnew;
@@ -125,8 +135,14 @@ impl Label {
         self
     }
 
+    pub fn fill_none(mut self) -> Self {
+        self.base.sizestrat.fill = ChooseCords::NONE;
+        self
+    }
+
     pub fn size(mut self, size: Size) -> Self {
         self.base.size = size;
+        self.base.sizestrat.method = SizeEnum::MANUAL;
         self
     }
 
@@ -290,7 +306,7 @@ impl Widget for Label {
         self.base.needs_relayout = flag;
     }
     fn update_layout(&mut self, _forced: bool) {}
-    fn handle_event(&mut self, _event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
+    fn handle_event(&mut self, _event: &Event, _pos_off: Pos, _actions: &mut Vec<Action>) {
         if self.needs_relayout() {
             self.set_relayout_flag(false);
         }
