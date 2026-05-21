@@ -46,7 +46,7 @@ impl WidgetBase {
 }
 
 pub trait Widget: Any {
-    fn get_id(&self) -> &str; //Getting widgets id
+    fn get_id(&self) -> &str;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn draw(
         &self,
