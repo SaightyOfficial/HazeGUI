@@ -1,21 +1,22 @@
 pub mod core;
 pub mod widgets;
 
-use core::color::Color;
-use core::widget::Widget;
-use core::common::merge_rects;
 use crate::core::{common::RenderStrategy, event::Action, pos::Pos, size::Size};
+use core::color::Color;
+use core::common::merge_rects;
+use core::widget::Widget;
 use widgets::frame;
 
-use winit::{
-    event::WindowEvent,
-    event_loop::{EventLoop,ActiveEventLoop},
-    window::{Window, WindowId},
-    application::ApplicationHandler,
-};
 use softbuffer::{Context, Surface};
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use tiny_skia::{Pixmap, PixmapMut, Rect};
+use winit::{
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, EventLoop},
+    window::{Window, WindowId},
+};
 
 type UserCallback<T> = Box<dyn FnMut(&Action, &mut frame::Frame, &mut T)>;
 
@@ -23,7 +24,7 @@ pub struct Win<T> {
     start_num: i32,
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
-    backbuffer: Option<tiny_skia::Pixmap>,
+    backbuffer: Option<Pixmap>,
     renderstrat: RenderStrategy,
     title: String,
     pub mainframe: frame::Frame,
@@ -33,19 +34,22 @@ pub struct Win<T> {
     resizable: bool,
     mouse_pos: Pos,
     pub state: T,
-    dirty_rect: Option<Option<tiny_skia::Rect>>,
+    dirty_rect: Option<Option<Rect>>,
     user_cb: Option<UserCallback<T>>,
     debug_thing: u32,
 }
 
 impl<T> Win<T> {
     pub fn new(init_state: T, renderstrat_given: RenderStrategy) -> Self {
-        let mut mainframe_setter = frame::Frame::new("mainframe".to_string()).pos(Pos::new(0, 0)).size(Size::new(800, 600)).color(Color::LIGHT_GRAY);
+        let mut mainframe_setter = frame::Frame::new("mainframe".to_string())
+            .pos(Pos::new(0, 0))
+            .size(Size::new(800, 600))
+            .color(Color::LIGHT_GRAY);
         mainframe_setter.set_relayout_flag(true);
-        Self { 
+        Self {
             start_num: 0,
-            title: String::from("HazeGUI window"), 
-            window: None, 
+            title: String::from("HazeGUI window"),
+            window: None,
             surface: None,
             backbuffer: None,
             renderstrat: renderstrat_given,
@@ -67,13 +71,13 @@ impl<T> Win<T> {
     }
 
     pub fn geometry(&mut self, newsize: Size) {
-        self.winsize = Size::new(newsize.width as i32,newsize.height as i32);
+        self.winsize = Size::new(newsize.width as i32, newsize.height as i32);
         self.mainframe.base.size = self.winsize;
-           
-        if let Some(window) = &self.window {
-            let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(newsize.width, newsize.height));
-        }
 
+        if let Some(window) = &self.window {
+            let _ = window
+                .request_inner_size(winit::dpi::PhysicalSize::new(newsize.width, newsize.height));
+        }
     }
 
     pub fn min_size(&mut self, size: Size) {
@@ -103,28 +107,31 @@ impl<T> ApplicationHandler for Win<T> {
         let mut attributes = Window::default_attributes()
             .with_title(&self.title)
             .with_resizable(self.resizable)
-            .with_inner_size(winit::dpi::PhysicalSize::new(self.winsize.width as u32, self.winsize.height as u32));
+            .with_inner_size(winit::dpi::PhysicalSize::new(
+                self.winsize.width as u32,
+                self.winsize.height as u32,
+            ));
 
         if let Some(min) = self.minsize {
             attributes = attributes.with_min_inner_size(winit::dpi::PhysicalSize::new(
-                min.width as u32, 
-                min.height as u32
+                min.width as u32,
+                min.height as u32,
             ));
         }
 
         if let Some(max) = self.maxsize {
             attributes = attributes.with_max_inner_size(winit::dpi::PhysicalSize::new(
-                max.width as u32, 
-                max.height as u32
+                max.width as u32,
+                max.height as u32,
             ));
         }
 
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
-        
+
         let context = Context::new(window.clone()).unwrap();
         let surface = Surface::new(&context, window.clone()).unwrap();
-        if self.renderstrat == RenderStrategy::CpuOptimized{
-            self.backbuffer = tiny_skia::Pixmap::new(self.winsize.width as u32, self.winsize.height as u32);
+        if self.renderstrat == RenderStrategy::CpuOptimized {
+            self.backbuffer = Pixmap::new(self.winsize.width as u32, self.winsize.height as u32);
         }
 
         self.window = Some(window);
@@ -150,15 +157,28 @@ impl<T> ApplicationHandler for Win<T> {
                     let mut buffer = surface.buffer_mut().unwrap();
                     match self.renderstrat {
                         RenderStrategy::CpuOptimized => {
-                            if let (Some(backbuffer), Some(dirty_type)) = (&mut self.backbuffer, self.dirty_rect.take()) {
+                            if let (Some(backbuffer), Some(dirty_type)) =
+                                (&mut self.backbuffer, self.dirty_rect.take())
+                            {
                                 let clip_rect = match dirty_type {
                                     Some(rect) => rect,
-                                    None => tiny_skia::Rect::from_xywh(0.0, 0.0, self.winsize.width as f32, self.winsize.height as f32).unwrap()
+                                    None => Rect::from_xywh(
+                                        0.0,
+                                        0.0,
+                                        self.winsize.width as f32,
+                                        self.winsize.height as f32,
+                                    )
+                                    .unwrap(),
                                 };
 
                                 println!("{:?}", clip_rect);
 
-                                self.mainframe.draw(&mut backbuffer.as_mut(), Pos::new(0, 0), clip_rect, None);
+                                self.mainframe.draw(
+                                    &mut backbuffer.as_mut(),
+                                    Pos::new(0, 0),
+                                    clip_rect,
+                                    None,
+                                );
 
                                 buffer.copy_from_slice(bytemuck::cast_slice(backbuffer.data()));
                             }
@@ -166,15 +186,23 @@ impl<T> ApplicationHandler for Win<T> {
                         RenderStrategy::RamOptimized => {
                             self.dirty_rect = None;
                             self.backbuffer = None;
-                            let full_rect = tiny_skia::Rect::from_xywh(0.0, 0.0, self.winsize.width as f32, self.winsize.height as f32).unwrap();
+                            let full_rect = Rect::from_xywh(
+                                0.0,
+                                0.0,
+                                self.winsize.width as f32,
+                                self.winsize.height as f32,
+                            )
+                            .unwrap();
 
-                            let mut pixmap = tiny_skia::PixmapMut::from_bytes(
+                            let mut pixmap = PixmapMut::from_bytes(
                                 bytemuck::cast_slice_mut(&mut buffer),
                                 self.winsize.width as u32,
-                                self.winsize.height as u32
-                            ).unwrap();
+                                self.winsize.height as u32,
+                            )
+                            .unwrap();
 
-                            self.mainframe.draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
+                            self.mainframe
+                                .draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
                         }
                     }
                     buffer.present().unwrap();
@@ -190,45 +218,62 @@ impl<T> ApplicationHandler for Win<T> {
                 if new_size.width > 0 && new_size.height > 0 {
                     self.backbuffer = None;
 
-                    if self.renderstrat == RenderStrategy::CpuOptimized { self.backbuffer = tiny_skia::Pixmap::new(new_size.width, new_size.height); }
-                    
+                    if self.renderstrat == RenderStrategy::CpuOptimized {
+                        self.backbuffer = Pixmap::new(new_size.width, new_size.height);
+                    }
+
                     if let Some(surface) = &mut self.surface {
-                        surface.resize(
-                            NonZeroU32::new(new_size.width).unwrap(),
-                            NonZeroU32::new(new_size.height).unwrap()
-                        ).unwrap();
+                        surface
+                            .resize(
+                                NonZeroU32::new(new_size.width).unwrap(),
+                                NonZeroU32::new(new_size.height).unwrap(),
+                            )
+                            .unwrap();
                     }
                 }
-                
+
                 self.dirty_rect = Some(None);
-                
+
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if button == winit::event::MouseButton::Left && state == winit::event::ElementState::Pressed {
-                    let click_event = crate::core::event::Event::MouseClick { pos: self.mouse_pos };
-                    
-                    self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut actions);
-                } else if button == winit::event::MouseButton::Left && state == winit::event::ElementState::Released {
-                    let click_event = crate::core::event::Event::MouseRelease { pos: self.mouse_pos };
-                    
-                    self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut actions);
+                if button == winit::event::MouseButton::Left
+                    && state == winit::event::ElementState::Pressed
+                {
+                    let click_event = crate::core::event::Event::MouseClick {
+                        pos: self.mouse_pos,
+                    };
+
+                    self.mainframe
+                        .handle_event(&click_event, Pos::new(0, 0), &mut actions);
+                } else if button == winit::event::MouseButton::Left
+                    && state == winit::event::ElementState::Released
+                {
+                    let click_event = crate::core::event::Event::MouseRelease {
+                        pos: self.mouse_pos,
+                    };
+
+                    self.mainframe
+                        .handle_event(&click_event, Pos::new(0, 0), &mut actions);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_pos = Pos::new(position.x as i32, position.y as i32);
-                let move_event = crate::core::event::Event::MouseMove { pos: self.mouse_pos };
-                
-                self.mainframe.handle_event(&move_event, Pos::new(0, 0), &mut actions);
+                let move_event = crate::core::event::Event::MouseMove {
+                    pos: self.mouse_pos,
+                };
+
+                self.mainframe
+                    .handle_event(&move_event, Pos::new(0, 0), &mut actions);
             }
             _ => (),
         }
 
         if !actions.is_empty() {
             if let Some(mut cb) = self.user_cb.take() {
-                let current_actions = actions.clone(); 
+                let current_actions = actions.clone();
                 for action in &current_actions {
                     cb(action, &mut self.mainframe, &mut self.state);
                 }
@@ -237,24 +282,31 @@ impl<T> ApplicationHandler for Win<T> {
         }
 
         let mut redraw_actions = Vec::new();
-        self.mainframe.get_dirty_rect(Pos::new(0, 0), &mut redraw_actions);
+        self.mainframe
+            .get_dirty_rect(Pos::new(0, 0), &mut redraw_actions);
 
         if !redraw_actions.is_empty() {
             for action in &redraw_actions {
                 if let Action::RedrawRequest(maybe_rect) = action {
                     match (self.dirty_rect, maybe_rect) {
-                        (Some(None), _) => {},
+                        (Some(None), _) => {}
                         (_, None) => self.dirty_rect = Some(None),
                         (None, Some(rect)) => self.dirty_rect = Some(Some(*rect)),
                         (Some(Some(current_rect)), Some(new_rect)) => {
-                            self.dirty_rect = Some(Some(merge_rects(current_rect, *new_rect)));
+                            self.dirty_rect = match merge_rects(current_rect, *new_rect) {
+                                Ok(merged) => Some(Some(merged)),
+                                Err(_) => Some(None),
+                            };
                         }
                     }
                 }
             }
         }
 
-        let needs_layout = self.mainframe.needs_relayout() || actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
+        let needs_layout = self.mainframe.needs_relayout()
+            || actions
+                .iter()
+                .any(|a| matches!(a, Action::UpdateLayoutRequest));
 
         if needs_layout {
             println!("Relayout");

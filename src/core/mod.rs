@@ -1,7 +1,8 @@
+#[rustfmt::skip]
 pub mod color;
-pub mod widget;
+pub mod common;
 pub mod errors;
+pub mod event;
 pub mod pos;
 pub mod size;
-pub mod common;
-pub mod event;
+pub mod widget;

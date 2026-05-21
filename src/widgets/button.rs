@@ -1,10 +1,10 @@
+use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
 use crate::core::size::Size;
-use crate::core::{color::Color, pos::Pos};
 use crate::core::widget::Widget;
+use crate::core::{color::Color, pos::Pos};
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use tiny_skia::{PixmapMut, Rect};
 
 pub struct Button {
@@ -12,8 +12,8 @@ pub struct Button {
     pub frame: Frame,
     pub text: Label,
     pub hover_color: Option<Color>,
-    is_hovered:bool,
-    is_pressed:bool,
+    is_hovered: bool,
+    is_pressed: bool,
 }
 
 impl Button {
@@ -120,13 +120,22 @@ impl Button {
 }
 
 impl Widget for Button {
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-    fn get_id(&self) -> &str { &self.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn get_id(&self) -> &str {
+        &self.id
+    }
+    fn draw(
+        &self,
+        pixmap: &mut PixmapMut,
+        pos_off: Pos,
+        clip: Rect,
+        _preferred_color: Option<Color>,
+    ) {
         let display_color = if self.is_hovered {
-            let hover_color = self.hover_color
-                .unwrap_or_else(|| self.frame.base.bgcolor.lighter(25));
-            hover_color
+            self.hover_color
+                .unwrap_or_else(|| self.frame.base.bgcolor.lighter(25))
         } else {
             self.frame.base.bgcolor
         };
@@ -138,27 +147,27 @@ impl Widget for Button {
 
     fn update_layout(&mut self, forced: bool) {
         self.frame.children.clear();
-        
-        self.text.update_size(); 
-        
+
+        self.text.update_size();
+
         if self.frame.get_size_strat().method == SizeEnum::AUTO {
             let text_size = self.text.get_size();
-            self.frame.base.size = text_size; 
+            self.frame.base.size = text_size;
         }
-        
+
         self.text.base.layoutstrat.side = Side::MIDDLE;
-        
+
         self.frame.add_widget(self.text.clone());
-        
+
         self.frame.update_layout(forced);
     }
 
-    fn set_size(&mut self, size: Size) { 
-        self.frame.base.size = size; 
-        self.update_layout(false); 
+    fn set_size(&mut self, size: Size) {
+        self.frame.base.size = size;
+        self.update_layout(false);
     }
-    fn set_pos(&mut self, pos: Pos) { 
-        self.frame.base.pos = pos; 
+    fn set_pos(&mut self, pos: Pos) {
+        self.frame.base.pos = pos;
     }
     fn get_size(&self) -> Size {
         self.frame.get_size()

@@ -1,9 +1,9 @@
-use crate::core::size::Size;
-use crate::core::event::{Action, Event};
-use crate::core::{color::Color, pos::Pos};
 use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
+use crate::core::event::{Action, Event};
+use crate::core::size::Size;
 use crate::core::widget::{UsedCord, Widget, WidgetBase};
-use tiny_skia::{PixmapMut, Paint, Rect, Color as SkiaColor};
+use crate::core::{color::Color, pos::Pos};
+use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
 
 use crate::core::common::{LayoutEnum, LayoutStrat, Side, intersect_rects};
 
@@ -29,7 +29,7 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn new(id:String) -> Self {
+    pub fn new(id: String) -> Self {
         Self {
             base: WidgetBase::new(id),
             style: FrameStyle::FLAT,
@@ -51,10 +51,10 @@ impl Frame {
             if child.get_id() == target_id {
                 return Some(&mut **child);
             }
-            if let Some(frame) = child.as_any_mut().downcast_mut::<Frame>() {
-                if let Some(found) = frame.find_mut(target_id) {
-                    return Some(found);
-                }
+            if let Some(frame) = child.as_any_mut().downcast_mut::<Frame>()
+                && let Some(found) = frame.find_mut(target_id)
+            {
+                return Some(found);
             }
         }
         None
@@ -88,11 +88,11 @@ impl Frame {
         self.set_dirty_flag(true);
     }
 
-    pub fn lightchangeamount(mut self, amount:u8) -> Self {
+    pub fn lightchangeamount(mut self, amount: u8) -> Self {
         self.lightchangeamount = amount;
         self
     }
-    pub fn set_lightchangeamount(&mut self, amount:u8) {
+    pub fn set_lightchangeamount(&mut self, amount: u8) {
         self.lightchangeamount = amount;
         self.set_dirty_flag(true);
     }
@@ -148,7 +148,7 @@ impl Frame {
         self.usedmiddle = UsedCord::default();
         self.usedright = UsedCord::default();
         self.usedtotal = UsedCord::default();
-        
+
         let mut max_left_width = 0;
         let mut max_middle_width = 0;
         let mut max_right_width = 0;
@@ -157,38 +157,44 @@ impl Frame {
         let border_padding = border_thickness * 2;
 
         for child in &mut self.children {
-            child.update_layout(true); 
+            child.update_layout(true);
             let child_size = child.get_size();
             let layoutstrat = child.get_layout_strat();
             let sizestrat = child.get_size_strat();
 
-            let is_fill_y = sizestrat.method == SizeEnum::FILL 
+            let is_fill_y = sizestrat.method == SizeEnum::FILL
                 && (sizestrat.fill == ChooseCords::Y || sizestrat.fill == ChooseCords::BOTH);
-            
+
             if layoutstrat.method == LayoutEnum::AUTO {
                 match layoutstrat.side {
                     Side::LEFT => {
-                        if child_size.width > max_left_width { max_left_width = child_size.width; }
-                        if is_fill_y { 
-                            self.usedleft.fill_widgets += 1; 
-                        } else { 
-                            self.usedleft.used_y += child_size.height; 
+                        if child_size.width > max_left_width {
+                            max_left_width = child_size.width;
+                        }
+                        if is_fill_y {
+                            self.usedleft.fill_widgets += 1;
+                        } else {
+                            self.usedleft.used_y += child_size.height;
                         }
                     }
                     Side::MIDDLE => {
-                        if child_size.width > max_middle_width { max_middle_width = child_size.width; }
-                        if is_fill_y { 
-                            self.usedmiddle.fill_widgets += 1; 
-                        } else { 
-                            self.usedmiddle.used_y += child_size.height; 
+                        if child_size.width > max_middle_width {
+                            max_middle_width = child_size.width;
+                        }
+                        if is_fill_y {
+                            self.usedmiddle.fill_widgets += 1;
+                        } else {
+                            self.usedmiddle.used_y += child_size.height;
                         }
                     }
                     Side::RIGHT => {
-                        if child_size.width > max_right_width { max_right_width = child_size.width; }
-                        if is_fill_y { 
-                            self.usedright.fill_widgets += 1; 
-                        } else { 
-                            self.usedright.used_y += child_size.height; 
+                        if child_size.width > max_right_width {
+                            max_right_width = child_size.width;
+                        }
+                        if is_fill_y {
+                            self.usedright.fill_widgets += 1;
+                        } else {
+                            self.usedright.used_y += child_size.height;
                         }
                     }
                 }
@@ -196,7 +202,9 @@ impl Frame {
         }
 
         let required_width = max_left_width + max_middle_width + max_right_width + border_padding;
-        let max_corridor_height = self.usedleft.used_y
+        let max_corridor_height = self
+            .usedleft
+            .used_y
             .max(self.usedmiddle.used_y)
             .max(self.usedright.used_y);
         let required_height = max_corridor_height + border_padding;
@@ -209,17 +217,26 @@ impl Frame {
         let parent_width = self.base.size.width - border_padding;
         let parent_height = self.base.size.height - border_padding;
 
-        let fill_left_h = if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y {
+        let fill_left_h = if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y
+        {
             (parent_height - self.usedleft.used_y) / self.usedleft.fill_widgets
-        } else { 0 };
+        } else {
+            0
+        };
 
-        let fill_middle_h = if self.usedmiddle.fill_widgets > 0 && parent_height > self.usedmiddle.used_y {
-            (parent_height - self.usedmiddle.used_y) / self.usedmiddle.fill_widgets
-        } else { 0 };
+        let fill_middle_h =
+            if self.usedmiddle.fill_widgets > 0 && parent_height > self.usedmiddle.used_y {
+                (parent_height - self.usedmiddle.used_y) / self.usedmiddle.fill_widgets
+            } else {
+                0
+            };
 
-        let fill_right_h = if self.usedright.fill_widgets > 0 && parent_height > self.usedright.used_y {
-            (parent_height - self.usedright.used_y) / self.usedright.fill_widgets
-        } else { 0 };
+        let fill_right_h =
+            if self.usedright.fill_widgets > 0 && parent_height > self.usedright.used_y {
+                (parent_height - self.usedright.used_y) / self.usedright.fill_widgets
+            } else {
+                0
+            };
 
         self.usedleft.used_y = border_thickness;
         self.usedmiddle.used_y = border_thickness;
@@ -227,16 +244,18 @@ impl Frame {
 
         let middle_allowed_width = if parent_width > (max_left_width + max_right_width) {
             parent_width - max_left_width - max_right_width
-        } else { 0 };
+        } else {
+            0
+        };
 
         for child in &mut self.children {
             let layoutstrat = child.get_layout_strat();
             let sizestrat = child.get_size_strat();
             let mut child_size = child.get_size();
 
-            let is_fill_x = sizestrat.method == SizeEnum::FILL 
+            let is_fill_x = sizestrat.method == SizeEnum::FILL
                 && (sizestrat.fill == ChooseCords::X || sizestrat.fill == ChooseCords::BOTH);
-            let is_fill_y = sizestrat.method == SizeEnum::FILL 
+            let is_fill_y = sizestrat.method == SizeEnum::FILL
                 && (sizestrat.fill == ChooseCords::Y || sizestrat.fill == ChooseCords::BOTH);
 
             if layoutstrat.method == LayoutEnum::AUTO {
@@ -247,7 +266,7 @@ impl Frame {
                         Side::RIGHT => child_size.height = fill_right_h,
                     }
                 }
-                
+
                 if is_fill_x {
                     match layoutstrat.side {
                         Side::LEFT => child_size.width = max_left_width,
@@ -259,16 +278,16 @@ impl Frame {
                 if is_fill_x || is_fill_y {
                     let sizestrat = child.get_size_strat();
 
-                    if let Some(max_w) = sizestrat.max_width {
-                        if child_size.width > max_w {
-                            child_size.width = max_w;
-                        }
+                    if let Some(max_w) = sizestrat.max_width
+                        && child_size.width > max_w
+                    {
+                        child_size.width = max_w;
                     }
 
-                    if let Some(max_h) = sizestrat.max_height {
-                        if child_size.height > max_h {
-                            child_size.height = max_h;
-                        }
+                    if let Some(max_h) = sizestrat.max_height
+                        && child_size.height > max_h
+                    {
+                        child_size.height = max_h;
                     }
 
                     child.set_size(child_size);
@@ -282,8 +301,9 @@ impl Frame {
                     }
                     Side::MIDDLE => {
                         let center_zone_start = border_thickness + max_left_width;
-                        let x_pos = center_zone_start + (middle_allowed_width - child_size.width) / 2;
-                        
+                        let x_pos =
+                            center_zone_start + (middle_allowed_width - child_size.width) / 2;
+
                         child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
                         self.usedmiddle.used_y += child_size.height;
                     }
@@ -299,7 +319,7 @@ impl Frame {
 
     pub fn set_style(&mut self, style: FrameStyle) {
         self.style = style;
-        if self.style != FrameStyle::FLAT && style != FrameStyle::FLAT{
+        if self.style != FrameStyle::FLAT && style != FrameStyle::FLAT {
             self.update_layout(false);
         }
         self.set_dirty_flag(true);
@@ -330,9 +350,19 @@ impl Frame {
 }
 
 impl Widget for Frame {
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-    fn get_id(&self) -> &str { &self.base.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>) {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn get_id(&self) -> &str {
+        &self.base.id
+    }
+    fn draw(
+        &self,
+        pixmap: &mut PixmapMut,
+        pos_off: Pos,
+        clip: Rect,
+        preferred_color: Option<Color>,
+    ) {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
         let w = self.base.size.width as f32;
@@ -349,32 +379,76 @@ impl Widget for Frame {
         let mut paint = Paint::default();
         let mut paintdark = Paint::default();
         let mut paintlight = Paint::default();
-        
+
         if let Some(preferred_color_done) = preferred_color {
-            paint.set_color(SkiaColor::from_rgba8(preferred_color_done.b, preferred_color_done.g, preferred_color_done.r, preferred_color_done.a));
+            paint.set_color(SkiaColor::from_rgba8(
+                preferred_color_done.b,
+                preferred_color_done.g,
+                preferred_color_done.r,
+                preferred_color_done.a,
+            ));
             let darkercolor = preferred_color_done.darker(self.lightchangeamount);
-            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
+            paintdark.set_color(SkiaColor::from_rgba8(
+                darkercolor.b,
+                darkercolor.g,
+                darkercolor.r,
+                darkercolor.a,
+            ));
             let lightercolor = preferred_color_done.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+            paintlight.set_color(SkiaColor::from_rgba8(
+                lightercolor.b,
+                lightercolor.g,
+                lightercolor.r,
+                lightercolor.a,
+            ));
         } else {
-            paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+            paint.set_color(SkiaColor::from_rgba8(
+                self.base.bgcolor.b,
+                self.base.bgcolor.g,
+                self.base.bgcolor.r,
+                self.base.bgcolor.a,
+            ));
             let darkercolor = self.base.bgcolor.darker(self.lightchangeamount);
-            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a));
+            paintdark.set_color(SkiaColor::from_rgba8(
+                darkercolor.b,
+                darkercolor.g,
+                darkercolor.r,
+                darkercolor.a,
+            ));
             let lightercolor = self.base.bgcolor.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+            paintlight.set_color(SkiaColor::from_rgba8(
+                lightercolor.b,
+                lightercolor.g,
+                lightercolor.r,
+                lightercolor.a,
+            ));
         }
 
         pixmap.fill_rect(inner_clip, &paint, tiny_skia::Transform::identity(), None);
 
-        let border_thickness = if self.style == FrameStyle::FLAT { 0.0 } else { 2.0 };
-        
+        let border_thickness = if self.style == FrameStyle::FLAT {
+            0.0
+        } else {
+            2.0
+        };
+
         if border_thickness != 0.0 {
             //Safe line rendering that is not going outide of clip
-            let draw_line = |pixmap: &mut PixmapMut, x: f32, y: f32, width: f32, height: f32, paint_style: &Paint| {
-                if let Some(line_rect) = Rect::from_xywh(x, y, width, height) {
-                    if let Some(visible_line) = intersect_rects(line_rect, clip) {
-                        pixmap.fill_rect(visible_line, paint_style, tiny_skia::Transform::identity(), None);
-                    }
+            let draw_line = |pixmap: &mut PixmapMut,
+                             x: f32,
+                             y: f32,
+                             width: f32,
+                             height: f32,
+                             paint_style: &Paint| {
+                if let Some(line_rect) = Rect::from_xywh(x, y, width, height)
+                    && let Some(visible_line) = intersect_rects(line_rect, clip)
+                {
+                    pixmap.fill_rect(
+                        visible_line,
+                        paint_style,
+                        tiny_skia::Transform::identity(),
+                        None,
+                    );
                 }
             };
 
@@ -388,8 +462,22 @@ impl Widget for Frame {
 
                     draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintdark);
                     draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                    draw_line(
+                        pixmap,
+                        abs_x + 1.0,
+                        abs_y + h - 2.0,
+                        w - 2.0,
+                        1.0,
+                        &paintdark,
+                    );
+                    draw_line(
+                        pixmap,
+                        abs_x + w - 2.0,
+                        abs_y + 1.0,
+                        1.0,
+                        h - 2.0,
+                        &paintdark,
+                    );
                 }
                 FrameStyle::SUNKEN => {
                     draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
@@ -399,8 +487,22 @@ impl Widget for Frame {
 
                     draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintlight);
                     draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(
+                        pixmap,
+                        abs_x + 1.0,
+                        abs_y + h - 2.0,
+                        w - 2.0,
+                        1.0,
+                        &paintlight,
+                    );
+                    draw_line(
+                        pixmap,
+                        abs_x + w - 2.0,
+                        abs_y + 1.0,
+                        1.0,
+                        h - 2.0,
+                        &paintlight,
+                    );
                 }
                 FrameStyle::GROOVE => {
                     draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
@@ -410,8 +512,22 @@ impl Widget for Frame {
 
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintlight);
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                    draw_line(
+                        pixmap,
+                        abs_x + 1.0,
+                        abs_y + h - 2.0,
+                        w - 2.0,
+                        1.0,
+                        &paintdark,
+                    );
+                    draw_line(
+                        pixmap,
+                        abs_x + w - 2.0,
+                        abs_y + 1.0,
+                        1.0,
+                        h - 2.0,
+                        &paintdark,
+                    );
                 }
                 FrameStyle::RIDGE => {
                     draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintlight);
@@ -421,8 +537,22 @@ impl Widget for Frame {
 
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(
+                        pixmap,
+                        abs_x + 1.0,
+                        abs_y + h - 2.0,
+                        w - 2.0,
+                        1.0,
+                        &paintlight,
+                    );
+                    draw_line(
+                        pixmap,
+                        abs_x + w - 2.0,
+                        abs_y + 1.0,
+                        1.0,
+                        h - 2.0,
+                        &paintlight,
+                    );
                 }
             }
         }
@@ -431,8 +561,9 @@ impl Widget for Frame {
             abs_x + border_thickness,
             abs_y + border_thickness,
             w - (border_thickness * 2.0),
-            h - (border_thickness * 2.0)
-        ).unwrap();
+            h - (border_thickness * 2.0),
+        )
+        .unwrap();
 
         let child_clip = match intersect_rects(inner_clip, inner_rect) {
             Some(r) => r,
@@ -440,7 +571,12 @@ impl Widget for Frame {
         };
 
         for child in &self.children {
-            child.draw(pixmap, Pos::new(abs_x as i32, abs_y as i32), child_clip, None);
+            child.draw(
+                pixmap,
+                Pos::new(abs_x as i32, abs_y as i32),
+                child_clip,
+                None,
+            );
         }
     }
     fn get_size(&self) -> Size {
@@ -450,27 +586,28 @@ impl Widget for Frame {
         self.base.pos
     }
     fn get_layout_strat(&self) -> LayoutStrat {
-        self.base.layoutstrat.clone()
+        self.base.layoutstrat
     }
     fn get_size_strat(&self) -> SizeStrat {
-        self.base.sizestrat.clone()
+        self.base.sizestrat
     }
     fn set_size(&mut self, size_new: Size) {
         if self.base.size.width != size_new.width || self.base.size.height != size_new.height {
-            self.base.size.width = size_new.width; 
+            self.base.size.width = size_new.width;
             self.base.size.height = size_new.height;
-            //self.refresh_layout(); 
+            //self.refresh_layout();
         }
     }
     fn set_pos(&mut self, pos_new: Pos) {
-        self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
+        self.base.pos.x = pos_new.x;
+        self.base.pos.y = pos_new.y;
     }
     fn is_dirty(&self) -> bool {
         self.base.is_dirty || self.children.iter().any(|c| c.is_dirty())
     }
     fn set_dirty_flag(&mut self, flag: bool) {
         self.base.is_dirty = flag;
-        if flag == false {
+        if !flag {
             for widget in &mut self.children {
                 widget.set_dirty_flag(flag);
             }
@@ -480,17 +617,15 @@ impl Widget for Frame {
         for child in &mut self.children {
             child.update_layout(false);
         }
-        if !forced {
-            if !self.needs_relayout() {
-                return;
-            }
+        if !forced && !self.needs_relayout() {
+            return;
         }
         self.refresh_layout();
         self.set_relayout_flag(false);
     }
     fn needs_relayout(&self) -> bool {
         let mut needed = false;
-        if self.base.needs_relayout == true {
+        if self.base.needs_relayout {
             return true;
         }
         for widget in &self.children {
@@ -500,12 +635,12 @@ impl Widget for Frame {
     }
     fn set_relayout_flag(&mut self, flag: bool) {
         self.base.needs_relayout = flag;
-        if flag == false {
+        if !flag {
             for widget in &mut self.children {
                 widget.set_relayout_flag(flag);
             }
         }
-        //println!("Set flag to {} by \"{}\"", flag, self.get_id()); 
+        //println!("Set flag to {} by \"{}\"", flag, self.get_id());
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         let my_global_pos = self.get_global_pos(pos_off);
@@ -518,7 +653,7 @@ impl Widget for Frame {
         }
     }
     fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
-        if self.base.is_dirty { 
+        if self.base.is_dirty {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 actions.push(Action::RedrawRequest(Some(dirty_rect)));
             }

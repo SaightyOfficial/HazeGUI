@@ -1,31 +1,23 @@
 use std::any::Any;
 
-use tiny_skia::{PixmapMut, Rect};
-use crate::core::event::Action;
-use crate::core::pos::Pos;
-use crate::core::size::Size;
+use crate::core::color::Color;
 use crate::core::common::LayoutStrat;
 use crate::core::common::SizeStrat;
-use crate::core::color::Color;
+use crate::core::event::Action;
 use crate::core::event::Event;
+use crate::core::pos::Pos;
+use crate::core::size::Size;
+use tiny_skia::{PixmapMut, Rect};
 
-#[derive(Clone)]
+///Struct used to store used coordinates, used in frame's composing engine
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct UsedCord {
     pub used_y: i32,
     pub used_x: i32,
     pub fill_widgets: i32,
 }
 
-impl Default for UsedCord {
-    fn default() -> Self {
-        Self{
-            used_x: 0,
-            used_y: 0,
-            fill_widgets: 0,
-        }
-    }
-}
-
+///Struct used to store info that every widget should have
 #[derive(Clone)]
 pub struct WidgetBase {
     pub id: String,
@@ -40,7 +32,7 @@ pub struct WidgetBase {
 
 impl WidgetBase {
     pub fn new(id_new: String) -> Self {
-        Self{
+        Self {
             id: id_new,
             pos: Pos::new(0, 0),
             size: Size::new(0, 0),
@@ -54,22 +46,27 @@ impl WidgetBase {
 }
 
 pub trait Widget: Any {
-    fn get_id(&self) -> &str;
+    fn get_id(&self) -> &str; //Getting widgets id
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>);
+    fn draw(
+        &self,
+        pixmap: &mut PixmapMut,
+        pos_off: Pos,
+        clip: Rect,
+        preferred_color: Option<Color>,
+    );
     fn is_point_inside(&self, global_point: Pos, parent_off: Pos) -> bool {
         let abs_x = parent_off.x + self.get_pos().x;
         let abs_y = parent_off.y + self.get_pos().y;
         let size = self.get_size();
 
-        global_point.x >= abs_x && 
-        global_point.x <= abs_x + size.width &&
-        global_point.y >= abs_y && 
-        global_point.y <= abs_y + size.height
+        global_point.x >= abs_x
+            && global_point.x <= abs_x + size.width
+            && global_point.y >= abs_y
+            && global_point.y <= abs_y + size.height
     }
     fn on_click(&mut self) {}
     fn on_hover(&mut self) {}
-    #[allow(unused_variables)] //We need that because of "forced" variable that is not being used but it cant be "_forced"
     fn update_layout(&mut self, forced: bool);
     fn set_size(&mut self, size: Size);
     fn set_pos(&mut self, pos: Pos);
@@ -78,7 +75,9 @@ pub trait Widget: Any {
         let abs_x = (pos_off.x + self.get_pos().x) as f32;
         let abs_y = (pos_off.y + self.get_pos().y) as f32;
         let size = self.get_size();
-        if let Some(dirty_rect) = tiny_skia::Rect::from_xywh(abs_x, abs_y, size.width as f32, size.height as f32) {
+        if let Some(dirty_rect) =
+            tiny_skia::Rect::from_xywh(abs_x, abs_y, size.width as f32, size.height as f32)
+        {
             return Some(dirty_rect);
         }
         None
@@ -89,7 +88,7 @@ pub trait Widget: Any {
     fn get_global_pos(&self, parent_off: Pos) -> Pos {
         Pos::new(
             parent_off.x + self.get_pos().x,
-            parent_off.y + self.get_pos().y
+            parent_off.y + self.get_pos().y,
         )
     }
     fn get_layout_strat(&self) -> LayoutStrat;

@@ -1,9 +1,9 @@
-use crate::core::size::Size;
-use crate::core::event::{Action, Event};
-use crate::core::{color::Color, pos::Pos};
 use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
+use crate::core::event::{Action, Event};
+use crate::core::size::Size;
 use crate::core::widget::{Widget, WidgetBase};
-use tiny_skia::{PixmapMut, Paint, Rect, Color as SkiaColor};
+use crate::core::{color::Color, pos::Pos};
+use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
 
 use fontdue::{Font, FontSettings};
 
@@ -39,13 +39,15 @@ impl Label {
     }
 
     pub fn update_size(&mut self) {
-        let old_size = self.base.size.clone();
+        let old_size = self.base.size;
         let mut max_width: f32 = 0.0;
         let mut height = 0.0;
-        
+
         let line_metrics = JETBRAINS_FONT.horizontal_line_metrics(self.font_size);
-        
-        let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size);
+
+        let lheight = line_metrics
+            .map(|m| m.new_line_size)
+            .unwrap_or(self.font_size);
 
         for line in &self.text {
             let mut lwidth = 0.0;
@@ -79,7 +81,7 @@ impl Label {
         self.set_dirty_flag(true);
     }
 
-    pub fn set_font_size(&mut self, size:f32) {
+    pub fn set_font_size(&mut self, size: f32) {
         self.font_size = size;
         self.update_size();
         self.set_relayout_flag(true);
@@ -155,30 +157,66 @@ impl Label {
 }
 
 impl Widget for Label {
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-    fn get_id(&self) -> &str { &self.base.id }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn get_id(&self) -> &str {
+        &self.base.id
+    }
+    fn draw(
+        &self,
+        pixmap: &mut PixmapMut,
+        pos_off: Pos,
+        clip: Rect,
+        _preferred_color: Option<Color>,
+    ) {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
 
         println!(
             "LABEL DRAW: id={}, text={:?}, abs_pos=({}, {}), size=({}, {}), clip=({}, {}, {}, {})",
-            self.base.id, self.text, abs_x, abs_y, 
-            self.base.size.width, self.base.size.height,
-            clip.left(), clip.top(), clip.right(), clip.bottom()
+            self.base.id,
+            self.text,
+            abs_x,
+            abs_y,
+            self.base.size.width,
+            self.base.size.height,
+            clip.left(),
+            clip.top(),
+            clip.right(),
+            clip.bottom()
         );
 
-        if let Some(bg_rect) = Rect::from_xywh(abs_x, abs_y, self.base.size.width as f32, self.base.size.height as f32) {
+        if let Some(bg_rect) = Rect::from_xywh(
+            abs_x,
+            abs_y,
+            self.base.size.width as f32,
+            self.base.size.height as f32,
+        ) {
             let mut bg_paint = Paint::default();
-            bg_paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+            bg_paint.set_color(SkiaColor::from_rgba8(
+                self.base.bgcolor.b,
+                self.base.bgcolor.g,
+                self.base.bgcolor.r,
+                self.base.bgcolor.a,
+            ));
             if let Some(visible_bg) = intersect_rects(bg_rect, clip) {
-                pixmap.fill_rect(visible_bg, &bg_paint, tiny_skia::Transform::identity(), None);
+                pixmap.fill_rect(
+                    visible_bg,
+                    &bg_paint,
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
             }
         }
 
         let line_metrics = JETBRAINS_FONT.horizontal_line_metrics(self.font_size);
-        let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size);
-        let ascent = line_metrics.map(|m| m.ascent).unwrap_or(self.font_size * 0.75);
+        let lheight = line_metrics
+            .map(|m| m.new_line_size)
+            .unwrap_or(self.font_size);
+        let ascent = line_metrics
+            .map(|m| m.ascent)
+            .unwrap_or(self.font_size * 0.75);
 
         let mut y_cursor = abs_y + 1.0;
 
@@ -188,7 +226,7 @@ impl Widget for Label {
 
             let img_w = pixmap.width() as i32;
             let img_h = pixmap.height() as i32;
-            
+
             let pixels = pixmap.pixels_mut();
 
             for c in line.chars() {
@@ -202,24 +240,35 @@ impl Widget for Label {
 
                 if metrics.width > 0 && metrics.height > 0 {
                     let px_base = (x_cursor + metrics.xmin as f32).round() as i32;
-                    let py_base = (baseline - metrics.height as f32 - metrics.ymin as f32).round() as i32;
+                    let py_base =
+                        (baseline - metrics.height as f32 - metrics.ymin as f32).round() as i32;
 
                     for row in 0..metrics.height {
                         let screen_y = py_base + row as i32;
-                        
-                        if screen_y < clip.top() as i32 || screen_y >= clip.bottom() as i32 || screen_y < 0 || screen_y >= img_h {
+
+                        if screen_y < clip.top() as i32
+                            || screen_y >= clip.bottom() as i32
+                            || screen_y < 0
+                            || screen_y >= img_h
+                        {
                             continue;
                         }
 
                         for col in 0..metrics.width {
                             let screen_x = px_base + col as i32;
 
-                            if screen_x < clip.left() as i32 || screen_x >= clip.right() as i32 || screen_x < 0 || screen_x >= img_w {
+                            if screen_x < clip.left() as i32
+                                || screen_x >= clip.right() as i32
+                                || screen_x < 0
+                                || screen_x >= img_w
+                            {
                                 continue;
                             }
 
                             let alpha = bitmap[row * metrics.width + col] as u32;
-                            if alpha == 0 { continue; }
+                            if alpha == 0 {
+                                continue;
+                            }
 
                             let pixel_idx = (screen_y * img_w + screen_x) as usize;
 
@@ -227,8 +276,9 @@ impl Widget for Label {
                                 self.textcolor.r,
                                 self.textcolor.g,
                                 self.textcolor.b,
-                                alpha as u8
-                            ).premultiply();
+                                alpha as u8,
+                            )
+                            .premultiply();
 
                             if alpha == 255 {
                                 pixels[pixel_idx] = fg_color;
@@ -273,16 +323,18 @@ impl Widget for Label {
         self.base.pos
     }
     fn get_layout_strat(&self) -> LayoutStrat {
-        self.base.layoutstrat.clone()
+        self.base.layoutstrat
     }
     fn get_size_strat(&self) -> SizeStrat {
-        self.base.sizestrat.clone()
+        self.base.sizestrat
     }
     fn set_size(&mut self, size_new: Size) {
-        self.base.size.width = size_new.width; self.base.size.height = size_new.height;
+        self.base.size.width = size_new.width;
+        self.base.size.height = size_new.height;
     }
     fn set_pos(&mut self, pos_new: Pos) {
-        self.base.pos.x = pos_new.x; self.base.pos.y = pos_new.y;
+        self.base.pos.x = pos_new.x;
+        self.base.pos.y = pos_new.y;
     }
     fn is_dirty(&self) -> bool {
         self.base.is_dirty
@@ -294,7 +346,7 @@ impl Widget for Label {
     fn handle_event(&mut self, event: &Event, pos_off: Pos, ) -> Action {
         if let Event::MouseClick { pos } = event {
             if self.is_point_inside(*pos, pos_off) {
-                return Action::None; 
+                return Action::None;
             }
         }
         Action::None
