@@ -1,7 +1,7 @@
 use std::sync::{Mutex, OnceLock};
 use std::collections::HashMap;
 
-static STRING_POOL: OnceLock<Mutex<HashMap<u64, String>>> = OnceLock::new();
+static ID_POOL: OnceLock<Mutex<HashMap<u64, String>>> = OnceLock::new(); //Place where we store id's and id strings
 
 /// FNV-1a [`str`]/[`String`] hashing, mainly used for id optimizations
 /// Easy way to call this function is "[`id`]" macro
@@ -31,7 +31,7 @@ macro_rules! hsid {
 pub fn regid(name: String) -> u64 {
     let hash = hash_str(&name);
     
-    let pool_mutex = STRING_POOL.get_or_init(|| Mutex::new(HashMap::with_capacity(16)));
+    let pool_mutex = ID_POOL.get_or_init(|| Mutex::new(HashMap::with_capacity(16)));
     
     if let Ok(mut pool) = pool_mutex.lock() {
         pool.insert(hash, name);
@@ -42,7 +42,7 @@ pub fn regid(name: String) -> u64 {
 
 ///Gets id into global id pool
 pub fn get_id(hash: u64) -> Option<String> {
-    let pool_mutex = STRING_POOL.get()?;
+    let pool_mutex = ID_POOL.get()?;
     let pool = pool_mutex.lock().ok()?;
     pool.get(&hash).cloned()
 }
