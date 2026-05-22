@@ -37,11 +37,13 @@ pub struct Win<T> {
     dirty_rect: Option<Option<Rect>>,
     user_cb: Option<UserCallback<T>>,
     debug_thing: u32,
+    redraw_actions: Vec<Action>,
+    actions: Vec<Action>,
 }
 
 impl<T> Win<T> {
     pub fn new(init_state: T, renderstrat_given: RenderStrategy) -> Self {
-        let mut mainframe_setter = frame::Frame::new("mainframe".to_string())
+        let mut mainframe_setter = frame::Frame::new("mainframe".into())
             .pos(Pos::new(0, 0))
             .size(Size::new(800, 600))
             .color(Color::LIGHT_GRAY);
@@ -63,6 +65,8 @@ impl<T> Win<T> {
             dirty_rect: Some(None),
             user_cb: None,
             debug_thing: 0,
+            actions: Vec::with_capacity(16),
+            redraw_actions: Vec::with_capacity(16),
         }
     }
 
@@ -146,8 +150,8 @@ impl<T> ApplicationHandler for Win<T> {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let mut actions = Vec::new();
-
+        self.actions.clear();
+        self.redraw_actions.clear();
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
@@ -158,8 +162,8 @@ impl<T> ApplicationHandler for Win<T> {
                     match self.renderstrat {
                         RenderStrategy::CpuOptimized => {
                             if let (Some(backbuffer), Some(dirty_type)) =
-                                (&mut self.backbuffer, self.dirty_rect.take())
-                            {
+                                (&mut self.backbuffer, self.dirty_rect.take()) {
+                                
                                 let clip_rect = match dirty_type {
                                     Some(rect) => rect,
                                     None => Rect::from_xywh(
@@ -167,8 +171,7 @@ impl<T> ApplicationHandler for Win<T> {
                                         0.0,
                                         self.winsize.width as f32,
                                         self.winsize.height as f32,
-                                    )
-                                    .unwrap(),
+                                    ).unwrap(),
                                 };
 
                                 println!("{:?}", clip_rect);
@@ -191,18 +194,15 @@ impl<T> ApplicationHandler for Win<T> {
                                 0.0,
                                 self.winsize.width as f32,
                                 self.winsize.height as f32,
-                            )
-                            .unwrap();
+                            ).unwrap();
 
                             let mut pixmap = PixmapMut::from_bytes(
                                 bytemuck::cast_slice_mut(&mut buffer),
                                 self.winsize.width as u32,
                                 self.winsize.height as u32,
-                            )
-                            .unwrap();
+                            ).unwrap();
 
-                            self.mainframe
-                                .draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
+                            self.mainframe.draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
                         }
                     }
                     buffer.present().unwrap();
@@ -227,8 +227,7 @@ impl<T> ApplicationHandler for Win<T> {
                             .resize(
                                 NonZeroU32::new(new_size.width).unwrap(),
                                 NonZeroU32::new(new_size.height).unwrap(),
-                            )
-                            .unwrap();
+                            ).unwrap();
                     }
                 }
 
@@ -246,8 +245,7 @@ impl<T> ApplicationHandler for Win<T> {
                         pos: self.mouse_pos,
                     };
 
-                    self.mainframe
-                        .handle_event(&click_event, Pos::new(0, 0), &mut actions);
+                    self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut self.actions);
                 } else if button == winit::event::MouseButton::Left
                     && state == winit::event::ElementState::Released
                 {
@@ -255,8 +253,7 @@ impl<T> ApplicationHandler for Win<T> {
                         pos: self.mouse_pos,
                     };
 
-                    self.mainframe
-                        .handle_event(&click_event, Pos::new(0, 0), &mut actions);
+                    self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut self.actions);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -265,28 +262,24 @@ impl<T> ApplicationHandler for Win<T> {
                     pos: self.mouse_pos,
                 };
 
-                self.mainframe
-                    .handle_event(&move_event, Pos::new(0, 0), &mut actions);
+                self.mainframe.handle_event(&move_event, Pos::new(0, 0), &mut self.actions);
             }
             _ => (),
         }
 
-        if !actions.is_empty() {
+        if !self.actions.is_empty() {
             if let Some(mut cb) = self.user_cb.take() {
-                let current_actions = actions.clone();
-                for action in &current_actions {
+                for action in &self.actions {
                     cb(action, &mut self.mainframe, &mut self.state);
                 }
                 self.user_cb = Some(cb);
             }
         }
 
-        let mut redraw_actions = Vec::new();
-        self.mainframe
-            .get_dirty_rect(Pos::new(0, 0), &mut redraw_actions);
+        self.mainframe.get_dirty_rect(Pos::new(0, 0), &mut self.redraw_actions);
 
-        if !redraw_actions.is_empty() {
-            for action in &redraw_actions {
+        if !self.redraw_actions.is_empty() {
+            for action in &self.redraw_actions {
                 if let Action::RedrawRequest(maybe_rect) = action {
                     match (self.dirty_rect, maybe_rect) {
                         (Some(None), _) => {}
@@ -304,7 +297,7 @@ impl<T> ApplicationHandler for Win<T> {
         }
 
         let needs_layout = self.mainframe.needs_relayout()
-            || actions
+            || self.actions
                 .iter()
                 .any(|a| matches!(a, Action::UpdateLayoutRequest));
 

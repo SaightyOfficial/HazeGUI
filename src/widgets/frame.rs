@@ -1,5 +1,6 @@
 use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
+use crate::core::idpool::regid;
 use crate::core::size::Size;
 use crate::core::widget::{UsedCord, Widget, WidgetBase};
 use crate::core::{color::Color, pos::Pos};
@@ -31,7 +32,7 @@ pub struct Frame {
 impl Frame {
     pub fn new(id: String) -> Self {
         Self {
-            base: WidgetBase::new(id),
+            base: WidgetBase::new(regid(id)),
             style: FrameStyle::FLAT,
             children: Vec::new(),
             usedmiddle: UsedCord::default(),
@@ -43,7 +44,7 @@ impl Frame {
         }
     }
 
-    pub fn find_mut(&mut self, target_id: &str) -> Option<&mut dyn Widget> {
+    pub fn find_mut(&mut self, target_id: u64) -> Option<&mut dyn Widget> {
         if self.base.id == target_id {
             return Some(self);
         }
@@ -330,7 +331,7 @@ impl Frame {
         self.set_dirty_flag(true);
     }
 
-    pub fn remove_widget(&mut self, target_id: &str) -> bool {
+    pub fn remove_widget(&mut self, target_id: u64) -> bool {
         self.set_dirty_flag(true);
         let old_len = self.children.len();
 
@@ -353,8 +354,8 @@ impl Widget for Frame {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    fn get_id(&self) -> &str {
-        &self.base.id
+    fn get_id(&self) -> u64 {
+        self.base.id
     }
     fn draw(
         &self,
@@ -381,47 +382,25 @@ impl Widget for Frame {
         let mut paintlight = Paint::default();
 
         if let Some(preferred_color_done) = preferred_color {
-            paint.set_color(SkiaColor::from_rgba8(
-                preferred_color_done.b,
-                preferred_color_done.g,
-                preferred_color_done.r,
-                preferred_color_done.a,
-            ));
+            paint.set_color(SkiaColor::from_rgba8(preferred_color_done.b, preferred_color_done.g, preferred_color_done.r, preferred_color_done.a));
+
             let darkercolor = preferred_color_done.darker(self.lightchangeamount);
-            paintdark.set_color(SkiaColor::from_rgba8(
-                darkercolor.b,
-                darkercolor.g,
-                darkercolor.r,
-                darkercolor.a,
-            ));
+            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a, ));
+
             let lightercolor = preferred_color_done.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(
-                lightercolor.b,
-                lightercolor.g,
-                lightercolor.r,
-                lightercolor.a,
-            ));
+            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
         } else {
-            paint.set_color(SkiaColor::from_rgba8(
-                self.base.bgcolor.b,
-                self.base.bgcolor.g,
-                self.base.bgcolor.r,
-                self.base.bgcolor.a,
-            ));
+            paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+
             let darkercolor = self.base.bgcolor.darker(self.lightchangeamount);
             paintdark.set_color(SkiaColor::from_rgba8(
                 darkercolor.b,
                 darkercolor.g,
                 darkercolor.r,
-                darkercolor.a,
-            ));
+                darkercolor.a));
+
             let lightercolor = self.base.bgcolor.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(
-                lightercolor.b,
-                lightercolor.g,
-                lightercolor.r,
-                lightercolor.a,
-            ));
+            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
         }
 
         pixmap.fill_rect(inner_clip, &paint, tiny_skia::Transform::identity(), None);
@@ -537,22 +516,8 @@ impl Widget for Frame {
 
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
                     draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
-                    draw_line(
-                        pixmap,
-                        abs_x + 1.0,
-                        abs_y + h - 2.0,
-                        w - 2.0,
-                        1.0,
-                        &paintlight,
-                    );
-                    draw_line(
-                        pixmap,
-                        abs_x + w - 2.0,
-                        abs_y + 1.0,
-                        1.0,
-                        h - 2.0,
-                        &paintlight,
-                    );
+                    draw_line(pixmap,abs_x + 1.0,abs_y + h - 2.0,w - 2.0,1.0, &paintlight);
+                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
                 }
             }
         }
@@ -652,17 +617,17 @@ impl Widget for Frame {
             child.handle_event(event, my_global_pos, actions);
         }
     }
-    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
+    fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
         if self.base.is_dirty {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
-                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+                requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
             self.base.is_dirty = false;
         }
 
         let my_global_pos = self.get_global_pos(pos_off);
         for child in &mut self.children {
-            child.get_dirty_rect(my_global_pos, actions);
+            child.get_dirty_rect(my_global_pos, requests);
         }
     }
 }

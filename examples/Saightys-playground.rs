@@ -5,6 +5,7 @@ there will be from small to no comments
 This is just my sandbox so idk =3
 */
 
+use haze_gui::hsid;
 #[allow(unused)]
 use haze_gui::{
     Win,
@@ -50,19 +51,19 @@ fn main() {
 
     root.mainloop(|action, mainframe, state| match action {
         Action::ButtonReleased(id) => {
-            if id == "add" {
+            if *id == hsid!("add") {
                 state.click_count += 1;
 
-                if let Some(widget) = mainframe.find_mut("counter_text") {
+                if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                     if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
                         label.new_text(state.click_count.to_string());
                     }
                 }
             }
-            if id == "sub" {
+            if *id == hsid!("sub") {
                 state.click_count -= 1;
 
-                if let Some(widget) = mainframe.find_mut("counter_text") {
+                if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                     if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
                         label.new_text(state.click_count.to_string());
                     }

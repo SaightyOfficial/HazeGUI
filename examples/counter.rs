@@ -1,7 +1,5 @@
 use haze_gui::{
-    Win,
-    core::{color::Color, common::RenderStrategy, event::Action, size::Size},
-    widgets::{button::Button, label::Label},
+    Win, core::{color::Color, common::RenderStrategy, event::Action, size::Size}, hsid, widgets::{button::Button, label::Label}
 };
 
 //creating appstate
@@ -17,16 +15,16 @@ fn main() {
     root.geometry(Size::new(400, 400)); //Setting window size
     root.resizable(false); //Can window be resized?
 
-    let text = Label::new("counter_text".to_string())
+    let text = Label::new("counter_text".into())
         .text(root.state.click_count.to_string())
         .bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
 
-    let buttonadd = Button::new("add".to_string())
+    let buttonadd = Button::new("add".into())
         .text("+1")
         .textcolor(Color::WHITE)
         .color(Color::DARK_GRAY); //Setting up button with id, text, and background color
 
-    let buttonsub = Button::new("sub".to_string())
+    let buttonsub = Button::new("sub".into())
         .text("-1")
         .textcolor(Color::WHITE)
         .color(Color::DARK_GRAY); //Setting up button with id, text, and background color
@@ -40,22 +38,20 @@ fn main() {
         match action {
             //proccesing action that buttons send when they are released
             Action::ButtonReleased(id) => {
-                if id == "add" {
-                    // checking button id
+                if *id == hsid!("add") { // checking button id
                     state.click_count += 1; //changing counter data
                     //searching for counter label in mainframe using id
-                    if let Some(widget) = mainframe.find_mut("counter_text") {
+                    if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
                             label.new_text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }
-                if id == "sub" {
-                    // checking button id
+                if *id == hsid!("sub") { // checking button id
                     state.click_count -= 1; //changing counter data
                     //searching for counter label in mainframe using id
-                    if let Some(widget) = mainframe.find_mut("counter_text") {
+                    if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
                             label.new_text(state.click_count.to_string()); //changing label text

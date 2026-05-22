@@ -77,7 +77,7 @@ impl Default for LayoutStrat {
     }
 }
 
-/// Checks if [`tiny_skia::Rect`] are intersecting eachother
+/// Checks if [`tiny_skia::Rect`] are intersecting each other
 pub fn intersect_rects(a: Rect, b: Rect) -> Option<Rect> {
     let left = a.left().max(b.left()); //Getting maximum left value
     let top = a.top().max(b.top()); //Getting maximum top value
@@ -104,30 +104,3 @@ pub fn merge_rects(a: Rect, b: Rect) -> Result<Rect, RectError> {
 
     Ok(merged)
 }
-
-/* EXPERIMENTAL AND MAY BE USED LATER
-
-// FNV-1a [`str`]/[`String`] hashing, mainly used for id optimizations
-// Easy way to call this function is "[`id`]" macro
-pub const fn hash_str(labels: &str) -> u64 {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    let prime: u64 = 0x100000001b3;
-
-    let bytes = labels.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        hash ^= bytes[i] as u64;
-        hash = hash.wrapping_mul(prime);
-        i += 1;
-    }
-    hash
-}
-
-// Easy way to call [`hash_str`]
-#[macro_export]
-macro_rules! id {
-    ($string:expr) => {
-        $crate::core::common::hash_str($string)
-    };
-}
-*/

@@ -1,5 +1,6 @@
 use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
+use crate::core::idpool::regid;
 use crate::core::size::Size;
 use crate::core::widget::{Widget, WidgetBase};
 use crate::core::{color::Color, pos::Pos};
@@ -28,7 +29,7 @@ pub struct Label {
 impl Label {
     pub fn new(id: String) -> Self {
         let mut label = Self {
-            base: WidgetBase::new(id),
+            base: WidgetBase::new(regid(id)),
             text: Vec::new(),
             font_size: 14.0,
             textcolor: Color::BLACK,
@@ -160,8 +161,8 @@ impl Widget for Label {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    fn get_id(&self) -> &str {
-        &self.base.id
+    fn get_id(&self) -> u64 {
+        self.base.id
     }
     fn draw(
         &self,
@@ -173,6 +174,7 @@ impl Widget for Label {
         let abs_x = (pos_off.x + self.base.pos.x) as f32;
         let abs_y = (pos_off.y + self.base.pos.y) as f32;
 
+        /*
         println!(
             "LABEL DRAW: id={}, text={:?}, abs_pos=({}, {}), size=({}, {}), clip=({}, {}, {}, {})",
             self.base.id,
@@ -185,7 +187,7 @@ impl Widget for Label {
             clip.top(),
             clip.right(),
             clip.bottom()
-        );
+        );*/
 
         if let Some(bg_rect) = Rect::from_xywh(
             abs_x,
@@ -363,10 +365,10 @@ impl Widget for Label {
             self.set_relayout_flag(false);
         }
     }
-    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
+    fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
         if self.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
-                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+                requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
             self.set_dirty_flag(false);
         }

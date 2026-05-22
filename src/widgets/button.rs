@@ -1,5 +1,6 @@
 use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
+use crate::core::idpool::regid;
 use crate::core::size::Size;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
@@ -8,7 +9,7 @@ use crate::widgets::label::Label;
 use tiny_skia::{PixmapMut, Rect};
 
 pub struct Button {
-    pub id: String,
+    pub id: u64,
     pub frame: Frame,
     pub text: Label,
     pub hover_color: Option<Color>,
@@ -19,7 +20,7 @@ pub struct Button {
 impl Button {
     pub fn new(id: String) -> Self {
         Self {
-            id: id.clone(),
+            id: regid(id.clone()),
             frame: Frame::new(format!("{}.frame", id.clone())).style(FrameStyle::RAISED),
             text: Label::new(format!("{}.label", id.clone())).bgcolor(Color::TRANSPARENT),
             hover_color: None,
@@ -123,8 +124,8 @@ impl Widget for Button {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    fn get_id(&self) -> &str {
-        &self.id
+    fn get_id(&self) -> u64 {
+        self.id
     }
     fn draw(
         &self,
@@ -200,14 +201,14 @@ impl Widget for Button {
             Event::MouseClick { pos } => {
                 if self.is_point_inside(*pos, pos_off) {
                     self.is_pressed = true;
-                    actions.push(Action::ButtonClicked(self.id.clone()));
+                    actions.push(Action::ButtonClicked(self.id));
                     self.frame.set_style(FrameStyle::SUNKEN);
                 }
             }
             Event::MouseRelease { pos } => {
                 if self.is_point_inside(*pos, pos_off) {
                     self.is_pressed = false;
-                    actions.push(Action::ButtonReleased(self.id.clone()));
+                    actions.push(Action::ButtonReleased(self.id));
                     self.frame.set_style(FrameStyle::RAISED);
                 }
             }
@@ -215,22 +216,23 @@ impl Widget for Button {
                 let now_hovered = self.is_point_inside(*pos, pos_off);
                 if now_hovered && !self.is_hovered {
                     self.is_hovered = true;
-                    actions.push(Action::Hovered(self.id.clone()));
+                    actions.push(Action::Hovered(self.id));
                     self.set_dirty_flag(true);
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
                     self.frame.set_style(FrameStyle::RAISED);
                     self.is_pressed = false;
-                    actions.push(Action::Unhovered(self.id.clone()));
+                    actions.push(Action::Unhovered(self.id));
                     self.set_dirty_flag(true);
                 }
             }
+            _ => {}
         }
     }
-    fn get_dirty_rect(&mut self, pos_off: Pos, actions: &mut Vec<Action>) {
+    fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
         if self.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
-                actions.push(Action::RedrawRequest(Some(dirty_rect)));
+                requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
             self.set_dirty_flag(false);
         }
