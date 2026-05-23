@@ -357,6 +357,7 @@ impl<T> ApplicationHandler for Win<T> {
             println!("Relayout");//Debug
             self.mainframe.update_layout(true);//Forced relayout
             self.mainframe.set_relayout_flag(false);//Setting relayout flag to false
+            self.dirty_rect = Some(None)//If relayout is needed then redraw whole window
         }
 
         //If we have firty rects or we need relayout then requesting redraw

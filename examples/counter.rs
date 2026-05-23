@@ -45,6 +45,7 @@ fn main() {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
                             label.new_text(state.click_count.to_string()); //changing label text
+                            label.set_bgcolor(Color::RED);
                         }
                     }
                 }
