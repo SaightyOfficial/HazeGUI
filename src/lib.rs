@@ -144,11 +144,11 @@ impl<T> ApplicationHandler for Win<T> {
         }
 
         //Window creation with setted attributes
-        let window = Arc::new(event_loop.create_window(attributes).unwrap());
+        let window = Arc::new(event_loop.create_window(attributes).expect("Failed to initialize window"));
 
         //Creation of window context, surface and backbuffer if using CpuOptimized strategy
-        let context = Context::new(window.clone()).unwrap();
-        let surface = Surface::new(&context, window.clone()).unwrap();
+        let context = Context::new(window.clone()).expect("Failed to initialize window context");
+        let surface = Surface::new(&context, window.clone()).expect("Failed to initialize window surface");
         if self.renderstrat == RenderStrategy::CpuOptimized {
             self.backbuffer = Pixmap::new(self.winsize.width as u32, self.winsize.height as u32);
         }
@@ -177,9 +177,19 @@ impl<T> ApplicationHandler for Win<T> {
             WindowEvent::RedrawRequested => {
                 self.debug_thing += 1; //Changing debug redraw counter
                 println!("Redrawing {}", self.debug_thing); //This is for debug
-                //Checking for window surface (There are lots of unsafe unwraps I will wix that later, sorry guys)
+                //Checking for window surface
                 if let Some(surface) = &mut self.surface {
-                    let mut buffer = surface.buffer_mut().unwrap(); //Initializing mutable framebuffer
+                    let mut buffer = match surface.buffer_mut() {
+                        Ok(buf) => buf,
+                        Err(err) => {
+                            println!("Failed to get surface buffer: {:?}", err); //Debug
+                            // Requesting redraw
+                            if let Some(window) = &self.window {
+                                window.request_redraw();
+                            }
+                            return; //Exit
+                        }
+                    };
                     match self.renderstrat {
                         RenderStrategy::CpuOptimized => {
                             //Checking for backbuffer and dirty rect
@@ -187,13 +197,16 @@ impl<T> ApplicationHandler for Win<T> {
                                 (&mut self.backbuffer, self.dirty_rect.take()) {
                                 
                                 let clip_rect = match dirty_type {
-                                    Some(rect) => rect, //If there is dirty rect, use it
-                                    None => Rect::from_xywh(
+                                    Some(rect) => rect, // If there is dirty rect, use it
+                                    None => match Rect::from_xywh(
                                         0.0,
                                         0.0,
                                         self.winsize.width as f32,
                                         self.winsize.height as f32,
-                                    ).unwrap(), //If there is no dirty rect then redraw whole window
+                                    ) {
+                                        Some(rect) => rect, //If there is no dirty rect then redraw whole window
+                                        None => {println!("Failed to get dirty rect"); return;}, //If error then exit
+                                    },
                                 };
 
                                 println!("{:?}", clip_rect); //Debug again
@@ -212,23 +225,25 @@ impl<T> ApplicationHandler for Win<T> {
                             //If ram usage(which is already small) should be optimized, then there should be no backbuffer just redraw whole window
                             self.dirty_rect = None;
                             self.backbuffer = None;
-                            let full_rect = Rect::from_xywh(
+                           let Some(full_rect) = Rect::from_xywh(
                                 0.0,
                                 0.0,
                                 self.winsize.width as f32,
                                 self.winsize.height as f32,
-                            ).unwrap();//Window rect
+                            ) else { println!("Failed to get window rect"); return; };//Window rect
 
-                            let mut pixmap = PixmapMut::from_bytes(
+                            let Some(mut pixmap) = PixmapMut::from_bytes(
                                 bytemuck::cast_slice_mut(&mut buffer),
                                 self.winsize.width as u32,
                                 self.winsize.height as u32,
-                            ).unwrap();//Window pixmap
+                            ) else { println!("Failed to get window PixmapMut"); return; }; //Window pixmap
 
                             self.mainframe.draw(&mut pixmap, Pos::new(0, 0), full_rect, None);
                         }
                     }
-                    buffer.present().unwrap();//Idk i forgot just dont touch that
+                    if let Err(err) = buffer.present() {
+                        println!("Failed to present buffer: {:?}", err);
+                    }//Putting frame into window
                 }
                 self.mainframe.set_dirty_flag(false); //Setting all dirtiness to zero cuz we already did renreding
                 self.dirty_rect = None; //Setting dirty rect to none
@@ -249,11 +264,11 @@ impl<T> ApplicationHandler for Win<T> {
                     //Checking for window surface
                     if let Some(surface) = &mut self.surface {
                         //Resizing it
-                        surface
-                            .resize(
-                                NonZeroU32::new(new_size.width).unwrap(),
-                                NonZeroU32::new(new_size.height).unwrap(),
-                            ).unwrap();
+                        if let (Some(w), Some(h)) = (NonZeroU32::new(new_size.width), NonZeroU32::new(new_size.height)) {
+                            if let Err(err) = surface.resize(w, h) {
+                                println!("Failed to resize window: {:?}", err);
+                            }
+                        }
                     }
                 }
 

@@ -27,7 +27,7 @@ pub enum Side {
 
 /// Enum used for storing coordinate ways, mainly used in [`LayoutStrat`]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ChooseCords {
+pub enum Axis {
     X,
     Y,
     BOTH,
@@ -45,7 +45,7 @@ pub enum RenderStrategy {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SizeStrat {
     pub method: SizeEnum,
-    pub fill: ChooseCords,
+    pub fill: Axis,
     pub max_width: Option<i32>,
     pub max_height: Option<i32>,
 }
@@ -54,7 +54,7 @@ impl Default for SizeStrat {
     fn default() -> Self {
         Self {
             method: SizeEnum::AUTO,
-            fill: ChooseCords::NONE,
+            fill: Axis::NONE,
             max_height: None,
             max_width: None,
         }

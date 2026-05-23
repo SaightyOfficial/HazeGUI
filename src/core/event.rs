@@ -27,4 +27,6 @@ pub enum Action {
     RedrawRequest(Option<tiny_skia::Rect>),
     /// Should be sent if something wants to relayout, relayouts and automaticaly redraws whole window and widget tree
     UpdateLayoutRequest,
+    ///Custom action, has widget id and String with other data that you will need, can be sended only by manual push by using [`crate::frame::Frame::push_action`]
+    CustomAction(u64,String),
 }

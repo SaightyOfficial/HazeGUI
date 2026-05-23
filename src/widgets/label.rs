@@ -1,4 +1,4 @@
-use crate::core::common::{ChooseCords, SizeEnum, SizeStrat};
+use crate::core::common::{Axis, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
@@ -123,24 +123,25 @@ impl Label {
     }
 
     //sizes
-    pub fn fill_x(mut self) -> Self {
-        self.base.sizestrat.fill = ChooseCords::X;
+    ///By which axises widget will stretch and fill itself
+    pub fn fill(mut self, cords: Axis) -> Self {
+        self.base.sizestrat.fill = cords;
+        if cords == Axis::NONE {
+            self.base.sizestrat.method = SizeEnum::AUTO;
+        } else {
+            self.base.sizestrat.method = SizeEnum::FILL;
+        }
         self
     }
 
-    pub fn fill_y(mut self) -> Self {
-        self.base.sizestrat.fill = ChooseCords::Y;
-        self
-    }
-
-    pub fn fill_both(mut self) -> Self {
-        self.base.sizestrat.fill = ChooseCords::BOTH;
-        self
-    }
-
-    pub fn fill_none(mut self) -> Self {
-        self.base.sizestrat.fill = ChooseCords::NONE;
-        self
+    ///Changes at runtime by which axises widget will stretch and fill itself
+    pub fn set_fill(&mut self, cords: Axis){
+        self.base.sizestrat.fill = cords;
+        if cords == Axis::NONE {
+            self.base.sizestrat.method = SizeEnum::AUTO;
+        } else {
+            self.base.sizestrat.method = SizeEnum::FILL;
+        }
     }
 
     pub fn size(mut self, size: Size) -> Self {
@@ -159,6 +160,9 @@ impl Label {
 
 impl Widget for Label {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
     fn get_id(&self) -> u64 {

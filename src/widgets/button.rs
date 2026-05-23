@@ -1,4 +1,4 @@
-use crate::core::common::{ChooseCords, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
+use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use crate::core::event::{Action, Event};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
@@ -70,28 +70,25 @@ impl Button {
     }
 
     //sizes
-    pub fn fill_x(mut self) -> Self {
-        self.frame.base.sizestrat.fill = ChooseCords::X;
-        self.frame.base.sizestrat.method = SizeEnum::FILL;
+    ///By which axises widget will stretch and fill itself
+    pub fn fill(mut self, cords: Axis) -> Self {
+        self.frame.base.sizestrat.fill = cords;
+        if cords == Axis::NONE {
+            self.frame.base.sizestrat.method = SizeEnum::AUTO;
+        } else {
+            self.frame.base.sizestrat.method = SizeEnum::FILL;
+        }
         self
     }
 
-    pub fn fill_y(mut self) -> Self {
-        self.frame.base.sizestrat.fill = ChooseCords::Y;
-        self.frame.base.sizestrat.method = SizeEnum::FILL;
-        self
-    }
-
-    pub fn fill_both(mut self) -> Self {
-        self.frame.base.sizestrat.fill = ChooseCords::BOTH;
-        self.frame.base.sizestrat.method = SizeEnum::FILL;
-        self
-    }
-
-    pub fn fill_none(mut self) -> Self {
-        self.frame.base.sizestrat.fill = ChooseCords::NONE;
-        self.frame.base.sizestrat.method = SizeEnum::AUTO;
-        self
+    ///Changes at runtime by which axises widget will stretch and fill itself
+    pub fn set_fill(&mut self, cords: Axis){
+        self.frame.base.sizestrat.fill = cords;
+        if cords == Axis::NONE {
+            self.frame.base.sizestrat.method = SizeEnum::AUTO;
+        } else {
+            self.frame.base.sizestrat.method = SizeEnum::FILL;
+        }
     }
 
     pub fn size(mut self, size: Size) -> Self {
@@ -122,6 +119,9 @@ impl Button {
 
 impl Widget for Button {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
     fn get_id(&self) -> u64 {

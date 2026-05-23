@@ -54,7 +54,11 @@ impl WidgetBase {
 pub trait Widget: Any {
     fn get_id(&self) -> u64;
     /// Used for downcasting to the actual widget type
+    /// Returns mutable reference to self as std::any::Any
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Used for downcasting to the actual widget type
+    /// Returns read-only reference to self as std::any::Any
+    fn as_any(&self) -> &dyn Any;
     /// Draws the widget onto provided pixmap
     /// 
     /// NOTE: Keep this implementation efficient as this is called every widget redraw
