@@ -59,6 +59,10 @@ pub trait Widget: Any {
     /// Used for downcasting to the actual widget type
     /// Returns read-only reference to self as std::any::Any
     fn as_any(&self) -> &dyn Any;
+    ///Should recursively find widget by its id and returns mutable reference to it if it has children, if you need read-only reference then use [`Widget::find`]
+    fn find_mut(&mut self, _target_id: u64) -> Option<&mut dyn Widget> { None }
+    ///Should recursively finds widget by its id and returns read-only reference to it if it has children, if you need mutable reference then use [`Widget::find_mut`]
+    fn find(&self, _target_id: u64) -> Option<&dyn Widget> { None }
     /// Draws the widget onto provided pixmap
     /// 
     /// NOTE: Keep this implementation efficient as this is called every widget redraw
@@ -68,13 +72,7 @@ pub trait Widget: Any {
     ///  - "pos_off" - Absolute offset of the parent container
     ///  - "clip" - Clipping rect to prevent drawing outside of the parent widget
     ///  - "preferred_color" - Customization parameter that can be used in many ways, like being used to make button hovers
-    fn draw(
-        &self,
-        pixmap: &mut PixmapMut,
-        pos_off: Pos,
-        clip: Rect,
-        preferred_color: Option<Color>,
-    );
+    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>);
     fn is_point_inside(&self, global_point: Pos, parent_off: Pos) -> bool {
         let abs_x = parent_off.x + self.get_pos().x;
         let abs_y = parent_off.y + self.get_pos().y;

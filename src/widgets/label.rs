@@ -92,27 +92,34 @@ impl Label {
         }
     }
 
-    ///Setting text for label
-    pub fn text(mut self, new_text: String) -> Self {
-        self.text = new_text.split("\n").map(String::from).collect();
-        self.update_size();
-        self
-    }
-
     ///Getting text from label
     pub fn get_text(&self) -> String {
         self.text.join("\n")
     }
 
     ///Setting text for label at runtime
-    pub fn new_text(&mut self, new_text: String) {
+    pub fn text(&mut self, new_text: String) {
         self.text = new_text.split("\n").map(String::from).collect();
         self.update_size();
         self.set_dirty_flag(true);
     }
 
+    //positions
+    pub fn pos(&mut self, posnew: Pos) {
+        self.base.pos = posnew;
+        self.base.layoutstrat.method = LayoutEnum::MANUAL;
+        self.set_relayout_flag(true);
+    }
+
+    ///Changes widget side at runtime, there are only [`Side::LEFT`], [`Side::MIDDLE`] and [`Side::RIGHT`], Y axis position depends on order by which widgets are added in your code
+    pub fn side(&mut self, side: Side) {
+        self.base.layoutstrat.side = side;
+        self.set_relayout_flag(true);
+    }
+
+    //colors
     ///Setting font size for label at runtime
-    pub fn set_font_size(&mut self, size: f32) {
+    pub fn font_size(&mut self, size: f32) {
         self.font_size = size;
         self.update_size();
         self.set_relayout_flag(true);
@@ -120,54 +127,20 @@ impl Label {
     }
 
     ///Setting text color at runtime
-    pub fn set_color(&mut self, color: Color) {
+    pub fn color(&mut self, color: Color) {
         self.textcolor = color;
         self.set_dirty_flag(true);
     }
 
     ///Setting background color at runtime
-    pub fn set_bgcolor(&mut self, color: Color) {
+    pub fn bgcolor(&mut self, color: Color) {
         self.base.bgcolor = color;
         self.set_dirty_flag(true);
     }
 
-    //positions
-    pub fn pos(mut self, posnew: Pos) -> Self {
-        self.base.pos = posnew;
-        self.base.layoutstrat.method = LayoutEnum::MANUAL;
-        self
-    }
-
-    pub fn side(mut self, side: Side) -> Self {
-        self.base.layoutstrat.side = side;
-        self
-    }
-
-    //colors
-    pub fn color(mut self, color: Color) -> Self {
-        self.textcolor = color;
-        self
-    }
-
-    pub fn bgcolor(mut self, color: Color) -> Self {
-        self.base.bgcolor = color;
-        self
-    }
-
     //sizes
-    ///By which axises widget will stretch and fill itself
-    pub fn fill(mut self, cords: Axis) -> Self {
-        self.base.sizestrat.fill = cords;
-        if cords == Axis::NONE {
-            self.base.sizestrat.method = SizeEnum::AUTO;
-        } else {
-            self.base.sizestrat.method = SizeEnum::FILL;
-        }
-        self
-    }
-
     ///Changes at runtime by which axises widget will stretch and fill itself
-    pub fn set_fill(&mut self, cords: Axis){
+    pub fn fill(&mut self, cords: Axis){
         self.base.sizestrat.fill = cords;
         if cords == Axis::NONE {
             self.base.sizestrat.method = SizeEnum::AUTO;
@@ -178,18 +151,15 @@ impl Label {
 
     ///Sets widget size, widget will not dynamicaly change size
     ///NOTE: Be careful while using it because if widget is too big it will be not fully visible
-    pub fn size(mut self, size: Size) -> Self {
+    pub fn size(&mut self, size: Size) {
         self.base.size = size;
         self.base.sizestrat.method = SizeEnum::MANUAL;
-        self
+        self.set_relayout_flag(true);
     }
 
-    ///Sets font size
-    pub fn font_size(mut self, size: f32) -> Self {
-        self.font_size = size;
-        self.update_size();
+    pub fn auto_size(&mut self) {
+        self.base.sizestrat.method = SizeEnum::AUTO;
         self.set_relayout_flag(true);
-        self
     }
 }
 

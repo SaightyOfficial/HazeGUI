@@ -8,6 +8,7 @@ use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
 use tiny_skia::{PixmapMut, Rect};
 
+///Buton struct, stores everything button needs
 pub struct Button {
     pub id: u64,
     pub frame: Frame,
@@ -19,70 +20,65 @@ pub struct Button {
 
 impl Button {
     pub fn new(id: String) -> Self {
+        let mut framesetter = Frame::new(format!("{}.frame", id.clone()));
+        framesetter.style(FrameStyle::RAISED);
+
+        let mut textsetter = Label::new(format!("{}.label", id.clone()));
+        textsetter.bgcolor(Color::TRANSPARENT);
+
         Self {
             id: regid(id.clone()),
-            frame: Frame::new(format!("{}.frame", id.clone())).style(FrameStyle::RAISED),
-            text: Label::new(format!("{}.label", id.clone())).bgcolor(Color::TRANSPARENT),
+            frame: framesetter,
+            text: textsetter,
             hover_color: None,
             is_hovered: false,
             is_pressed: false,
         }
     }
-    pub fn text(mut self, new_text: &str) -> Self {
-        self.text.new_text(new_text.into());
-        self.update_layout(false);
-        self
-    }
-
-    pub fn new_text(&mut self, new_text: String) {
-        self.text.new_text(new_text);
+    ///Changes button text at runtime
+    pub fn text(&mut self, new_text: String) {
+        self.text.text(new_text);
         self.text.update_size();
     }
 
     //positions
-    pub fn pos(mut self, posnew: Pos) -> Self {
+    ///Manualy set widget position, widget will not participate in auto layout composing and just be where you said it to be
+    pub fn pos(&mut self, posnew: Pos) {
         self.frame.base.pos = posnew;
         self.frame.base.layoutstrat.method = LayoutEnum::MANUAL;
-        self
+        self.set_relayout_flag(true);
     }
 
-    pub fn side(mut self, side: Side) -> Self {
+    ///Changes widget side at runtime, there are only [`Side::LEFT`], [`Side::MIDDLE`] and [`Side::RIGHT`], Y axis position depends on order by which widgets are added in your code
+    pub fn side(&mut self, side: Side) {
         self.frame.base.layoutstrat.side = side;
-        self
+        self.set_relayout_flag(true);
     }
 
     //colors
-    pub fn color(mut self, new_color: Color) -> Self {
+    ///Sets button color 
+    pub fn color(&mut self, new_color: Color) {
         //self.text.base.bgcolor = new_color;
         self.frame.base.bgcolor = new_color;
         //println!("{:?}", self.frame.base.bgcolor.clone());
-        self
+        self.set_dirty_flag(true);
     }
 
-    pub fn textcolor(mut self, new_color: Color) -> Self {
+    ///Sets text color
+    pub fn textcolor(&mut self, new_color: Color) {
         self.text.textcolor = new_color;
-        self
+        self.set_dirty_flag(true);
     }
 
-    pub fn hovercolor(mut self, new_color: Color) -> Self {
+    ///Sets hover color
+    pub fn hovercolor(&mut self, new_color: Color) {
         self.hover_color = Some(new_color);
-        self
+        self.set_dirty_flag(true);
     }
 
     //sizes
-    ///By which axises widget will stretch and fill itself
-    pub fn fill(mut self, cords: Axis) -> Self {
-        self.frame.base.sizestrat.fill = cords;
-        if cords == Axis::NONE {
-            self.frame.base.sizestrat.method = SizeEnum::AUTO;
-        } else {
-            self.frame.base.sizestrat.method = SizeEnum::FILL;
-        }
-        self
-    }
-
     ///Changes at runtime by which axises widget will stretch and fill itself
-    pub fn set_fill(&mut self, cords: Axis){
+    pub fn fill(&mut self, cords: Axis) {
         self.frame.base.sizestrat.fill = cords;
         if cords == Axis::NONE {
             self.frame.base.sizestrat.method = SizeEnum::AUTO;
@@ -91,28 +87,50 @@ impl Button {
         }
     }
 
-    pub fn size(mut self, size: Size) -> Self {
+    pub fn size(&mut self, size: Size) {
         self.frame.base.size = size;
-        self
+        self.frame.base.sizestrat.method = SizeEnum::MANUAL;
+        self.set_relayout_flag(true);
     }
 
-    pub fn font_size(mut self, size: f32) -> Self {
-        self.text.font_size = size;
-        self
+    pub fn auto_size(&mut self) {
+        self.frame.base.sizestrat.method = SizeEnum::AUTO;
+        self.set_relayout_flag(true);
     }
 
-    pub fn max_size(mut self, w: Option<i32>, h: Option<i32>) -> Self {
-        self.frame.base.sizestrat.max_width = w;
-        self.frame.base.sizestrat.max_height = h;
-        self
+    pub fn font_size(&mut self, size: f32) {
+        self.text.font_size(size);
+        self.set_dirty_flag(true);
+        self.set_relayout_flag(true);
     }
 
-    pub fn set_max_size(&mut self, w: Option<Option<i32>>, h: Option<Option<i32>>) {
+    ///Changes max widget size at runtime
+    /// 
+    ///Example arguments:
+    ///None - Dont tourch tha axis
+    ///Some(None) - Removes limit
+    ///Some(Some(i32)) - Sets limit
+    pub fn max_size(&mut self, w: Option<Option<i32>>, h: Option<Option<i32>>) {
         if let Some(width) = w {
             self.frame.base.sizestrat.max_width = width;
         }
         if let Some(height) = h {
             self.frame.base.sizestrat.max_height = height;
+        }
+    }
+
+    ///Changes minimal widget size at runtime
+    /// 
+    ///Example arguments:
+    ///None - Dont change that axis
+    ///Some(None) - Removes limit
+    ///Some(Some(i32)) - Sets limit
+    pub fn min_size(&mut self, w: Option<Option<i32>>, h: Option<Option<i32>>) {
+        if let Some(width) = w {
+            self.frame.base.sizestrat.min_width = width;
+        }
+        if let Some(height) = h {
+            self.frame.base.sizestrat.min_height = height;
         }
     }
 }
@@ -134,6 +152,7 @@ impl Widget for Button {
         clip: Rect,
         _preferred_color: Option<Color>,
     ) {
+        //Getting display color depending on is button hovered
         let display_color = if self.is_hovered {
             self.hover_color
                 .unwrap_or_else(|| self.frame.base.bgcolor.lighter(25))
@@ -147,20 +166,22 @@ impl Widget for Button {
     }
 
     fn update_layout(&mut self, forced: bool) {
+        //That is a shitty realization i know but it works
         self.frame.children.clear();
 
-        self.text.update_size();
+        self.text.update_size();//Updating text size
 
+        //Depending on size strategy method we are changing button size
         if self.frame.get_size_strat().method == SizeEnum::AUTO {
             let text_size = self.text.get_size();
             self.frame.base.size = text_size;
         }
 
-        self.text.base.layoutstrat.side = Side::MIDDLE;
+        self.text.base.layoutstrat.side = Side::MIDDLE;//Setting text side
 
-        self.frame.add_widget(self.text.clone());
+        self.frame.add_widget(self.text.clone());//Adding widget
 
-        self.frame.update_layout(forced);
+        self.frame.update_layout(forced);//Layout update
     }
 
     fn set_size(&mut self, size: Size) {
@@ -197,30 +218,36 @@ impl Widget for Button {
         self.text.base.needs_relayout = flag;
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
+        //Button event handling
         match event {
+            //On mouse click we are checking is this button inside, then if it is changins some values and making the button pressed and pushing action
             Event::MouseClick { pos } => {
-                if self.is_point_inside(*pos, pos_off) {
+                if self.is_point_inside(*pos, pos_off) && !self.is_pressed {
                     self.is_pressed = true;
                     actions.push(Action::ButtonClicked(self.id));
-                    self.frame.set_style(FrameStyle::SUNKEN);
+                    self.frame.style(FrameStyle::SUNKEN);
                 }
             }
+            //Same thing here but we are pushing mouse release action
             Event::MouseRelease { pos } => {
-                if self.is_point_inside(*pos, pos_off) {
+                if self.is_point_inside(*pos, pos_off) && self.is_pressed  {
                     self.is_pressed = false;
                     actions.push(Action::ButtonReleased(self.id));
-                    self.frame.set_style(FrameStyle::RAISED);
+                    self.frame.style(FrameStyle::RAISED);
                 }
             }
+            //Mouse hovering part
             Event::MouseMove { pos } => {
                 let now_hovered = self.is_point_inside(*pos, pos_off);
+                //If mouse is hovered then we are changing is_hovered, requesting redraw and pushing hovered action
                 if now_hovered && !self.is_hovered {
                     self.is_hovered = true;
                     actions.push(Action::Hovered(self.id));
                     self.set_dirty_flag(true);
+                //If mouse is unhovered then are setting style to raised, changing a lot of values and and pushing unhovered action
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
-                    self.frame.set_style(FrameStyle::RAISED);
+                    self.frame.style(FrameStyle::RAISED);
                     self.is_pressed = false;
                     actions.push(Action::Unhovered(self.id));
                     self.set_dirty_flag(true);

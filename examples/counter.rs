@@ -1,5 +1,5 @@
 use haze_gui::{
-    Win, core::{color::Color, common::RenderStrategy, event::Action, size::Size}, hsid, widgets::{button::Button, label::Label}
+    Win, core::{color::Color, event::Action, renderconfig::RenderConfig, size::Size, widget::Widget}, hsid, widgets::{button::Button, label::Label}
 };
 
 //creating appstate
@@ -9,29 +9,29 @@ pub struct AppState {
 
 fn main() {
     let init_state = AppState { click_count: 0 }; //initializing appstate
-    let mut root = Win::new(init_state, RenderStrategy::CpuOptimized); // Creating window, note that on desktop pcs it is better to use cpu optimized render strategy
+    let mut root = Win::new(init_state, RenderConfig::default()); // Creating window
 
     root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size
-    root.resizable(false); //Can window be resized?
+    //root.resizable(false); //Can window be resized?
 
-    let text = Label::new("counter_text".into())
-        .text(root.state.click_count.to_string())
-        .bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
+    let mut text = Label::new("counter_text".into());
+    text.text(root.core.state.click_count.to_string());
+    //text.bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
 
-    let buttonadd = Button::new("add".into())
-        .text("+1")
-        .textcolor(Color::WHITE)
-        .color(Color::DARK_GRAY); //Setting up button with id, text, and background color
+    let mut buttonadd = Button::new("add".into());
+    buttonadd.text("+1".into());
+    buttonadd.textcolor(Color::WHITE);
+    buttonadd.color(Color::DARK_GRAY); //Setting up button with id, text, and background color
 
-    let buttonsub = Button::new("sub".into())
-        .text("-1")
-        .textcolor(Color::WHITE)
-        .color(Color::DARK_GRAY); //Setting up button with id, text, and background color
+    let mut buttonsub = Button::new("sub".into());
+    buttonsub.text("-1".into());
+    buttonsub.textcolor(Color::WHITE);
+    buttonsub.color(Color::DARK_GRAY); //Setting up button with id, text, and background color
 
-    root.mainframe.add_widget(text); //Adding counter label to main frame
-    root.mainframe.add_widget(buttonadd); //Adding add button to main frame
-    root.mainframe.add_widget(buttonsub); //Adding substract button to main frame
+    root.core.mainframe.add_widget(text); //Adding counter label to main frame
+    root.core.mainframe.add_widget(buttonadd); //Adding add button to main frame
+    root.core.mainframe.add_widget(buttonsub); //Adding substract button to main frame
 
     root.mainloop(|action, mainframe, state| {
         //Mainloop where you procces events
@@ -44,8 +44,7 @@ fn main() {
                     if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.new_text(state.click_count.to_string()); //changing label text
-                            label.set_bgcolor(Color::RED);
+                            label.text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }
@@ -55,7 +54,7 @@ fn main() {
                     if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.new_text(state.click_count.to_string()); //changing label text
+                            label.text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }

@@ -21,6 +21,7 @@ pub enum Action {
     Hovered(u64),
     /// Something was unhovered, contains ID
     Unhovered(u64),
+    ScrollChanged(u64, f32),
     /// Should be sent if something wants to redraw itself,
     /// contains self rect (can and in most cases should be got by [`crate::Widget::get_self_rect`]),
     /// if contains [`None`] whole window will be redrawn

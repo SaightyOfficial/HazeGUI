@@ -34,13 +34,6 @@ pub enum Axis {
     NONE,
 }
 
-/// Enum used for changing rendering based on what should be optimized more
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RenderStrategy {
-    CpuOptimized,
-    RamOptimized,
-}
-
 /// Struct used for size strategy storing and managing
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SizeStrat {
@@ -48,6 +41,8 @@ pub struct SizeStrat {
     pub fill: Axis,
     pub max_width: Option<i32>,
     pub max_height: Option<i32>,
+    pub min_width: Option<i32>,
+    pub min_height: Option<i32>,
 }
 
 impl Default for SizeStrat {
@@ -57,6 +52,8 @@ impl Default for SizeStrat {
             fill: Axis::NONE,
             max_height: None,
             max_width: None,
+            min_height: None,
+            min_width: None,
         }
     }
 }

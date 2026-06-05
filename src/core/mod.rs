@@ -7,3 +7,5 @@ pub mod pos;
 pub mod size;
 pub mod widget;
 pub mod idpool;
+pub mod renderconfig;
+pub mod kernel;
