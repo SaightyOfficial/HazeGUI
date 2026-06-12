@@ -81,7 +81,6 @@ impl<T> AppCore<T> {
     ///Callbacks, dirty rects and relayout
     ///Returns true if needs redraw
     pub fn post_process_events(&mut self) -> bool {
-        // 1. Сначала даем юзеру обработать экшены через коллбек
         if !self.actions.is_empty() {
             if let Some(mut cb) = self.user_cb.take() {
                 for action in &self.actions {
@@ -91,17 +90,15 @@ impl<T> AppCore<T> {
             }
         }
 
-        // 2. СРАЗУ проверяем и обновляем лайаут, ЕСЛИ кто-то попросил
         let needs_layout = self.mainframe.needs_relayout()
             || self.actions.iter().any(|a| matches!(a, Action::UpdateLayoutRequest));
 
         if needs_layout {
             self.mainframe.update_layout(true);
             self.mainframe.set_relayout_flag(false);
-            self.dirty_rect = Some(None); // Перерисовываем всё окно, если лайаут изменился
+            self.dirty_rect = Some(None);
         }
 
-        // 3. И вот ТОЛЬКО ТЕПЕРЬ, когда все встали на свои новые места, собираем грязь!
         self.mainframe.get_dirty_rect(Pos::new(0, 0), &mut self.redraw_actions);
 
         if !self.redraw_actions.is_empty() {
@@ -136,7 +133,7 @@ impl<T> AppCore<T> {
                 None => Rect::from_xywh(0.0, 0.0, self.bufsize.width as f32, self.bufsize.height as f32).unwrap(),
             };
 
-            println!("{:?}", dirty_rect);
+            //println!("{:?}", dirty_rect);
 
             self.mainframe.draw(&mut backbuffer.as_mut(), Pos::new(0, 0), clip_rect, None);
 

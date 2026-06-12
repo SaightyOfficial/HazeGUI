@@ -55,7 +55,7 @@ impl Frame {
     }
 
     ///Changes widget side at runtime, there are only [`Side::LEFT`], [`Side::MIDDLE`] and [`Side::RIGHT`], Y axis position depends on order by which widgets are added in your code
-    pub fn set_side(&mut self, side: Side) {
+    pub fn side(&mut self, side: Side) {
         self.base.layoutstrat.side = side;
         self.base.sizestrat.method = SizeEnum::AUTO;
         self.set_relayout_flag(true);
@@ -104,7 +104,7 @@ impl Frame {
     ///NOTE: Be careful while using it because if widget is too big or too small it or its child widgets will not be fully visible
     pub fn size(&mut self, size: Size){
         self.base.size = size;
-        self.base.layoutstrat.method = LayoutEnum::MANUAL;
+        self.base.sizestrat.method = SizeEnum::MANUAL;
         self.set_relayout_flag(true);
     }
 
@@ -168,10 +168,10 @@ impl Frame {
             let sizestrat = child.get_size_strat();
 
             // Min/max size changes
-            if let Some(min_w) = sizestrat.min_width { child_size.width = child_size.width.max(min_w); }
             if let Some(max_w) = sizestrat.max_width { child_size.width = child_size.width.min(max_w); }
-            if let Some(min_h) = sizestrat.min_height { child_size.height = child_size.height.max(min_h); }
             if let Some(max_h) = sizestrat.max_height { child_size.height = child_size.height.min(max_h); }
+            if let Some(min_w) = sizestrat.min_width { child_size.width = child_size.width.max(min_w); }
+            if let Some(min_h) = sizestrat.min_height { child_size.height = child_size.height.max(min_h); }
 
             // Will be filled by Y axis?
             let is_fill_y = sizestrat.method == SizeEnum::FILL
@@ -225,10 +225,14 @@ impl Frame {
         // Height that we need to properly show everything
         let required_height = max_corridor_height + border_padding;
 
-        // If self size strategy is auto, shrink itself to needed size 
+        // If self size strategy is auto, shrink itself to needed size
         if self.get_size_strat().method == SizeEnum::AUTO {
             self.base.size.width = required_width;
             self.base.size.height = required_height;
+
+            //Resetting minimal sizes
+            if let Some(min_w) = self.base.sizestrat.min_width { self.base.size.width = self.base.size.width.max(min_w); }
+            if let Some(min_h) = self.base.sizestrat.min_height { self.base.size.height = self.base.size.height.max(min_h); }
         }
 
         // Getting self inner sizes where widgets will be placed

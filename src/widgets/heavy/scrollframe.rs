@@ -341,39 +341,28 @@ impl Widget for ScrollFrame {
         }
     }*/
     fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
-        // Вычисляем глобальную позицию самого ScrollFrame
         //let abs_pos = Pos::new(pos_off.x + self.get_pos().x, pos_off.y + self.get_pos().y);
         
-        // 1. Если грязный СУПЕР-КОНТЕЙНЕР (сам ScrollFrame) — например, из-за скроллинга
-        // Мы проверяем именно базовый флаг грязи самого фрейма-каркаса
         if self.frame.base.is_dirty {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-            // Сбрасываем грязь у себя и у ВСЕХ детей ниже, так как мы всё равно перерисуем всё окно скролла
             self.set_dirty_flag(false); 
             return;
         }
 
-        // 2. ОПТИМИЗАЦИЯ: Если сам скролл не двигался, но грязный кто-то внутри контейнера
         if self.frame.is_dirty() {
-            // Создаем временный вектор для сбора точечных запросов от детей (скроллбаров, контейнера и его вложений)
             let mut child_requests = Vec::new();
             
-            // Просим внутренний frame собрать точечные прямоугольники его детей.
-            // Передаем pos_off с учетом координат самого ScrollFrame
             self.frame.get_dirty_rect(pos_off, &mut child_requests);
 
-            // Получаем область видимости (Viewport) нашего скролла, чтобы обрезать вылезающие прямоугольники
             if let Some(my_rect) = self.get_self_rect(pos_off) {
                 for action in child_requests {
                     if let Action::RedrawRequest(Some(child_rect)) = action {
-                        // Пересекаем (клипаем) грязный прямоугольник ребенка с границами ScrollFrame
                         if let Some(clipped_rect) = my_rect.intersect(&child_rect) {
                             requests.push(Action::RedrawRequest(Some(clipped_rect)));
                         }
                     } else {
-                        // Если там прилетел не RedrawRequest, а другой экшен — просто пробрасываем наверх
                         requests.push(action);
                     }
                 }

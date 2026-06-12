@@ -1,4 +1,4 @@
-use haze_gui::widgets::heavy::scrollframe::ScrollFrame;
+use haze_gui::widgets::{heavy::scrollframe::ScrollFrame, switch::Switch};
 /*
 NOTE: This file is just for my tests while im working on this lib,
 there will be from small to no comments
@@ -54,9 +54,13 @@ fn main() {
     a.fill(Axis::BOTH);
     //a.padding(10);
 
+    let mut aa = Switch::new("aa".into());
+    aa.text("switch".into());
+
     a.add_widget(text); //Adding counter label to main frame
     a.add_widget(buttonadd); //Adding add button to main frame
     a.add_widget(buttonsub); //Adding substract button to main frame
+    a.add_widget(aa);
 
     root.core.mainframe.add_widget(a);
 
@@ -87,3 +91,4 @@ fn main() {
         _ => {}
     }});
 }
+ 

@@ -21,13 +21,16 @@ pub enum Action {
     Hovered(u64),
     /// Something was unhovered, contains ID
     Unhovered(u64),
+    /// Change of scrollbar, contains ID and scroll percentage(from 0.0 to 1.0)
     ScrollChanged(u64, f32),
+    /// Switch was clicked and changed its value,
+    SwitchChanged(u64, bool),
     /// Should be sent if something wants to redraw itself,
     /// contains self rect (can and in most cases should be got by [`crate::Widget::get_self_rect`]),
     /// if contains [`None`] whole window will be redrawn
     RedrawRequest(Option<tiny_skia::Rect>),
-    /// Should be sent if something wants to relayout, relayouts and automaticaly redraws whole window and widget tree
+    /// Should be sent if something wants to relayout, relayouts widget tree and automaticaly redraws whole window
     UpdateLayoutRequest,
-    ///Custom action, has widget id and String with other data that you will need, can be sended only by manual push by using [`crate::frame::Frame::push_action`]
+    /// Custom action, has widget id and String with other data that you will need, can be sended only by manual push by using [`crate::frame::Frame::push_action`]
     CustomAction(u64,String),
 }
