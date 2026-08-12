@@ -1,7 +1,7 @@
 pub mod core;
 pub mod widgets;
 
-use crate::core::{event::Action, renderconfig::RenderConfig, size::Size};
+use crate::core::{event::{Action, MKey}, renderconfig::RenderConfig, size::Size};
 use core::kernel::AppCore;
 use widgets::frame;
 
@@ -122,13 +122,82 @@ impl<T> ApplicationHandler for Win<T> {
             }
             
             WindowEvent::MouseInput { state, button, .. } => {
-                if button == winit::event::MouseButton::Left {
-                    self.core.handle_mouse_click(state == winit::event::ElementState::Pressed);
-                }
+                let key = match button {
+                    winit::event::MouseButton::Left => {MKey::Left}
+                    winit::event::MouseButton::Middle => {MKey::Middle}
+                    winit::event::MouseButton::Right => {MKey::Right}
+                    winit::event::MouseButton::Back => {MKey::Back}
+                    winit::event::MouseButton::Forward => {MKey::Forward}
+                    winit::event::MouseButton::Other(_) => {MKey::None}
+                };
+                self.core.handle_mouse_click(state == winit::event::ElementState::Pressed, key);
             }
             
             WindowEvent::CursorMoved { position, .. } => {
                 self.core.handle_mouse_move(position.x as i32, position.y as i32);
+            }
+            WindowEvent::KeyboardInput { device_id: _, event, is_synthetic: _ } => {
+                let is_pressed = event.state == winit::event::ElementState::Pressed;
+                
+                let mut ch = '\0';
+                if let Some(text) = &event.text {
+                    if let Some(c) = text.chars().next() {
+                        ch = c;
+                    }
+                }
+
+                use winit::keyboard::{Key, NamedKey};
+                let key = match &event.logical_key {
+                    // Усі твої службові клавіші через NamedKey:
+                    Key::Named(NamedKey::Backspace) => crate::core::event::KKey::Backspace,
+                    Key::Named(NamedKey::Enter)     => crate::core::event::KKey::Enter,
+                    Key::Named(NamedKey::Space)     => crate::core::event::KKey::Space,
+                    Key::Named(NamedKey::ArrowUp)   => crate::core::event::KKey::ArrowUp,
+                    Key::Named(NamedKey::ArrowDown) => crate::core::event::KKey::ArrowDown,
+                    Key::Named(NamedKey::ArrowLeft) => crate::core::event::KKey::ArrowLeft,
+                    Key::Named(NamedKey::ArrowRight)=> crate::core::event::KKey::ArrowRight,
+                    Key::Named(NamedKey::Delete)    => crate::core::event::KKey::Delete,
+                    Key::Named(NamedKey::Home)      => crate::core::event::KKey::Home,
+                    Key::Named(NamedKey::End)       => crate::core::event::KKey::End,
+                    Key::Named(NamedKey::PageUp)    => crate::core::event::KKey::PageUp,
+                    Key::Named(NamedKey::PageDown)  => crate::core::event::KKey::PageDown,
+                    Key::Named(NamedKey::Tab)       => crate::core::event::KKey::Tab,
+                    Key::Named(NamedKey::Escape)    => crate::core::event::KKey::Escape,
+                    Key::Named(NamedKey::Insert)    => crate::core::event::KKey::Insert,
+                    Key::Named(NamedKey::PrintScreen) => crate::core::event::KKey::PrintScr,
+                    Key::Named(NamedKey::Shift) => crate::core::event::KKey::Shift,
+                    Key::Named(NamedKey::Control) => crate::core::event::KKey::Ctrl,
+                    Key::Named(NamedKey::Alt) => crate::core::event::KKey::Alt,
+                    Key::Named(NamedKey::Super) | Key::Named(NamedKey::Meta) => crate::core::event::KKey::Super,
+                    Key::Named(NamedKey::Fn) => crate::core::event::KKey::Fn,
+                    Key::Named(NamedKey::CapsLock)    => crate::core::event::KKey::CapsLock,
+                    Key::Named(NamedKey::ContextMenu) => crate::core::event::KKey::ContextMenu,
+                    
+                    Key::Named(NamedKey::F1)  => crate::core::event::KKey::F1,
+                    Key::Named(NamedKey::F2)  => crate::core::event::KKey::F2,
+                    Key::Named(NamedKey::F3)  => crate::core::event::KKey::F3,
+                    Key::Named(NamedKey::F4)  => crate::core::event::KKey::F4,
+                    Key::Named(NamedKey::F5)  => crate::core::event::KKey::F5,
+                    Key::Named(NamedKey::F6)  => crate::core::event::KKey::F6,
+                    Key::Named(NamedKey::F7)  => crate::core::event::KKey::F7,
+                    Key::Named(NamedKey::F8)  => crate::core::event::KKey::F8,
+                    Key::Named(NamedKey::F9)  => crate::core::event::KKey::F9,
+                    Key::Named(NamedKey::F10) => crate::core::event::KKey::F10,
+                    Key::Named(NamedKey::F11) => crate::core::event::KKey::F11,
+                    Key::Named(NamedKey::F12) => crate::core::event::KKey::F12,
+                    // Якщо це звичайний друкований символ або цифра, у KKey можна ставити None, 
+                    // оскільки для них у тебе вже є окремий параметр `ch: char`!
+                    Key::Character(_) => crate::core::event::KKey::None,
+
+                    _ => {
+                        // ДЕБАГ: якщо прилетить якась зовсім екзотична кнопка, 
+                        // ти побачиш її в терміналі і зможеш додати у світ
+                        println!("Unknown key: {:?}", event.logical_key);
+                        crate::core::event::KKey::None
+                    }
+                };
+
+                self.core.handle_keyboard_event(is_pressed, key, ch);
             }
             _ => (),
         }

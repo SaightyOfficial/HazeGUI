@@ -79,9 +79,9 @@ pub trait Widget: Any {
         let size = self.get_size();
 
         global_point.x >= abs_x
-            && global_point.x <= abs_x + size.width
+            && global_point.x < abs_x + size.width
             && global_point.y >= abs_y
-            && global_point.y <= abs_y + size.height
+            && global_point.y < abs_y + size.height
     }
     fn on_click(&mut self) {}
     fn on_hover(&mut self) {}

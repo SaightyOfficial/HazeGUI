@@ -1,5 +1,5 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event};
+use crate::core::event::{Action, Event, MKey};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
 use crate::core::widget::Widget;
@@ -223,8 +223,8 @@ impl Widget for ScrollBar {
 
         // Общие ивенты для обеих осей, чтобы не дублировать код
         match event {
-            Event::MouseRelease { pos: _ } => {
-                if self.is_dragged {
+            Event::MouseRelease { pos: _, key } => {
+                if self.is_dragged && *key == MKey::Left {
                     self.is_dragged = false;
                 }
                 return;
@@ -257,25 +257,27 @@ impl Widget for ScrollBar {
                 let thumb_abs_x = track_abs_pos.x + bordersize as i32;
 
                 match event {
-                    Event::MouseClick { pos } => {
-                        let inside_thumb_x = pos.x >= thumb_abs_x && pos.x <= thumb_abs_x + size.width;
-                        let inside_thumb_y = pos.y >= thumb_abs_y && pos.y <= thumb_abs_y + thumb_height as i32;
+                    Event::MouseClick { pos, key } => {
+                        if *key == MKey::Left {
+                            let inside_thumb_x = pos.x >= thumb_abs_x && pos.x <= thumb_abs_x + size.width;
+                            let inside_thumb_y = pos.y >= thumb_abs_y && pos.y <= thumb_abs_y + thumb_height as i32;
 
-                        if inside_thumb_x && inside_thumb_y {
-                            self.is_dragged = true;
-                            self.dragstartmouse = pos.y as f32;
-                            self.set_dirty_flag(true);
-                        } else if self.is_point_inside(*pos, pos_off) && max_travel > 0.0 {
-                            let click_y_rel = (pos.y - track_abs_pos.y) as f32 - bordersize;
-                            let new_thumb_y = (click_y_rel - thumb_height / 2.0).clamp(0.0, max_travel);
-                            
-                            self.scroll_value = new_thumb_y / max_travel;
-                            actions.push(Action::ScrollChanged(self.id, self.scroll_value));
-                            
-                            self.is_dragged = true;
-                            self.dragstartmouse = track_abs_pos.y as f32 + bordersize + new_thumb_y + (thumb_height / 2.0);
-                            
-                            self.update_layout(false);
+                            if inside_thumb_x && inside_thumb_y {
+                                self.is_dragged = true;
+                                self.dragstartmouse = pos.y as f32;
+                                self.set_dirty_flag(true);
+                            } else if self.is_point_inside(*pos, pos_off) && max_travel > 0.0 {
+                                let click_y_rel = (pos.y - track_abs_pos.y) as f32 - bordersize;
+                                let new_thumb_y = (click_y_rel - thumb_height / 2.0).clamp(0.0, max_travel);
+                                
+                                self.scroll_value = new_thumb_y / max_travel;
+                                actions.push(Action::ScrollChanged(self.id, self.scroll_value));
+                                
+                                self.is_dragged = true;
+                                self.dragstartmouse = track_abs_pos.y as f32 + bordersize + new_thumb_y + (thumb_height / 2.0);
+                                
+                                self.update_layout(false);
+                            }
                         }
                     }
                     Event::MouseMove { pos } => {
@@ -310,25 +312,27 @@ impl Widget for ScrollBar {
                 let thumb_abs_y = track_abs_pos.y + bordersize as i32;
 
                 match event {
-                    Event::MouseClick { pos } => {
-                        let inside_thumb_x = pos.x >= thumb_abs_x && pos.x <= thumb_abs_x + thumb_width as i32;
-                        let inside_thumb_y = pos.y >= thumb_abs_y && pos.y <= thumb_abs_y + size.height;
+                    Event::MouseClick { pos, key } => {
+                        if *key == MKey::Left {
+                            let inside_thumb_x = pos.x >= thumb_abs_x && pos.x <= thumb_abs_x + thumb_width as i32;
+                            let inside_thumb_y = pos.y >= thumb_abs_y && pos.y <= thumb_abs_y + size.height;
 
-                        if inside_thumb_x && inside_thumb_y {
-                            self.is_dragged = true;
-                            self.dragstartmouse = pos.x as f32;
-                            self.set_dirty_flag(true);
-                        } else if self.is_point_inside(*pos, pos_off) && max_travel > 0.0 {
-                            let click_x_rel = (pos.x - track_abs_pos.x) as f32 - bordersize;
-                            let new_thumb_x = (click_x_rel - thumb_width / 2.0).clamp(0.0, max_travel);
-                            
-                            self.scroll_value = new_thumb_x / max_travel;
-                            actions.push(Action::ScrollChanged(self.id, self.scroll_value));
-                            
-                            self.is_dragged = true;
-                            self.dragstartmouse = track_abs_pos.x as f32 + bordersize + new_thumb_x + (thumb_width / 2.0);
-                            
-                            self.update_layout(false);
+                            if inside_thumb_x && inside_thumb_y {
+                                self.is_dragged = true;
+                                self.dragstartmouse = pos.x as f32;
+                                self.set_dirty_flag(true);
+                            } else if self.is_point_inside(*pos, pos_off) && max_travel > 0.0 {
+                                let click_x_rel = (pos.x - track_abs_pos.x) as f32 - bordersize;
+                                let new_thumb_x = (click_x_rel - thumb_width / 2.0).clamp(0.0, max_travel);
+                                
+                                self.scroll_value = new_thumb_x / max_travel;
+                                actions.push(Action::ScrollChanged(self.id, self.scroll_value));
+                                
+                                self.is_dragged = true;
+                                self.dragstartmouse = track_abs_pos.x as f32 + bordersize + new_thumb_x + (thumb_width / 2.0);
+                                
+                                self.update_layout(false);
+                            }
                         }
                     }
                     Event::MouseMove { pos } => {

@@ -1,4 +1,5 @@
 use crate::core;
+use crate::core::event::{KKey, MKey};
 use crate::core::renderconfig::RenderConfig;
 use crate::core::{event::Action, pos::Pos, size::Size, common::merge_rects};
 use core::color::Color;
@@ -63,11 +64,11 @@ impl<T> AppCore<T> {
         self.dirty_rect = Some(None);
     }
 
-    pub fn handle_mouse_click(&mut self, is_pressed: bool) {
+    pub fn handle_mouse_click(&mut self, is_pressed: bool, key: MKey) {
         let click_event = if is_pressed {
-            core::event::Event::MouseClick { pos: self.mouse_pos }
+            core::event::Event::MouseClick { pos: self.mouse_pos, key }
         } else {
-            core::event::Event::MouseRelease { pos: self.mouse_pos }
+            core::event::Event::MouseRelease { pos: self.mouse_pos, key }
         };
         self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut self.actions);
     }
@@ -76,6 +77,16 @@ impl<T> AppCore<T> {
         self.mouse_pos = Pos::new(x, y);
         let move_event = core::event::Event::MouseMove { pos: self.mouse_pos };
         self.mainframe.handle_event(&move_event, Pos::new(0, 0), &mut self.actions);
+    }
+
+    pub fn handle_keyboard_event(&mut self, is_pressed: bool, key: KKey, ch: char) {
+        let click_event = if is_pressed {
+            core::event::Event::KeyPress { ch, key }
+        } else {
+            core::event::Event::KeyRelease { ch, key }
+        };
+        println!("{:?}", &click_event);
+        self.mainframe.handle_event(&click_event, Pos::new(0, 0), &mut self.actions);
     }
 
     ///Callbacks, dirty rects and relayout

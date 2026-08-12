@@ -1,6 +1,7 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event};
-use crate::core::idpool::regid;
+use crate::core::event::{Action, Event, MKey};
+use crate::core::idpool::{regid, get_id};
+use crate::hsid;
 use crate::core::size::Size;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
@@ -12,7 +13,6 @@ use tiny_skia::{PixmapMut, Rect};
 pub struct Button {
     pub id: u64,
     pub frame: Frame,
-    pub text: Label,
     pub hover_color: Option<Color>,
     is_hovered: bool,
     is_pressed: bool,
@@ -26,19 +26,28 @@ impl Button {
         let mut textsetter = Label::new(format!("{}.label", id.clone()));
         textsetter.bgcolor(Color::TRANSPARENT);
 
+        framesetter.add_widget(textsetter);
+
         Self {
             id: regid(id.clone()),
             frame: framesetter,
-            text: textsetter,
             hover_color: None,
             is_hovered: false,
             is_pressed: false,
         }
     }
+
     ///Changes button text at runtime
     pub fn text(&mut self, new_text: String) {
-        self.text.text(new_text);
-        self.text.update_size();
+        if let Some(id) = get_id(self.id.clone()) {
+            let labelid = format!("{}.label", id.clone());
+
+            if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
+                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
+                    label.text(new_text);
+                }
+            }
+        }
     }
 
     //positions
@@ -66,8 +75,15 @@ impl Button {
 
     ///Sets text color
     pub fn textcolor(&mut self, new_color: Color) {
-        self.text.textcolor = new_color;
-        self.set_dirty_flag(true);
+        if let Some(id) = get_id(self.id.clone()) {
+            let labelid = format!("{}.label", id.clone());
+
+            if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
+                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
+                    label.color(new_color);
+                }
+            }
+        }
     }
 
     ///Sets hover color
@@ -99,9 +115,15 @@ impl Button {
     }
 
     pub fn font_size(&mut self, size: f32) {
-        self.text.font_size(size);
-        self.set_dirty_flag(true);
-        self.set_relayout_flag(true);
+        if let Some(id) = get_id(self.id.clone()) {
+            let labelid = format!("{}.label", id.clone());
+
+            if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
+                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
+                    label.font_size(size);
+                }
+            }
+        }
     }
 
     ///Changes max widget size at runtime
@@ -166,21 +188,6 @@ impl Widget for Button {
     }
 
     fn update_layout(&mut self, forced: bool) {
-        //That is a shitty realization i know but it works
-        self.frame.children.clear();
-
-        self.text.update_size();//Updating text size
-
-        //Depending on size strategy method we are changing button size
-        if self.frame.get_size_strat().method == SizeEnum::AUTO {
-            let text_size = self.text.get_size();
-            self.frame.base.size = text_size;
-        }
-
-        self.text.base.layoutstrat.side = Side::MIDDLE;//Setting text side
-
-        self.frame.add_widget(self.text.clone());//Adding widget
-
         self.frame.update_layout(forced);//Layout update
     }
 
@@ -204,33 +211,31 @@ impl Widget for Button {
         self.frame.get_size_strat()
     }
     fn is_dirty(&self) -> bool {
-        self.text.is_dirty() || self.frame.is_dirty()
+        self.frame.is_dirty()
     }
     fn set_dirty_flag(&mut self, flag: bool) {
         self.frame.set_dirty_flag(flag);
-        self.text.base.is_dirty = flag;
     }
     fn needs_relayout(&self) -> bool {
-        self.frame.base.needs_relayout || self.text.base.needs_relayout
+        self.frame.needs_relayout()
     }
     fn set_relayout_flag(&mut self, flag: bool) {
         self.frame.set_relayout_flag(flag);
-        self.text.base.needs_relayout = flag;
     }
     fn handle_event(&mut self, event: &Event, pos_off: Pos, actions: &mut Vec<Action>) {
         //Button event handling
         match event {
             //On mouse click we are checking is this button inside, then if it is changins some values and making the button pressed and pushing action
-            Event::MouseClick { pos } => {
-                if self.is_point_inside(*pos, pos_off) && !self.is_pressed {
+            Event::MouseClick { pos, key } => {
+                if self.is_point_inside(*pos, pos_off) && !self.is_pressed && *key == MKey::Left {
                     self.is_pressed = true;
                     actions.push(Action::ButtonClicked(self.id));
                     self.frame.style(FrameStyle::SUNKEN);
                 }
             }
             //Same thing here but we are pushing mouse release action
-            Event::MouseRelease { pos } => {
-                if self.is_point_inside(*pos, pos_off) && self.is_pressed  {
+            Event::MouseRelease { pos, key } => {
+                if self.is_point_inside(*pos, pos_off) && self.is_pressed && *key == MKey::Left  {
                     self.is_pressed = false;
                     actions.push(Action::ButtonReleased(self.id));
                     self.frame.style(FrameStyle::RAISED);

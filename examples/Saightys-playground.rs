@@ -1,4 +1,5 @@
-use haze_gui::widgets::{heavy::scrollframe::ScrollFrame, switch::Switch};
+#[allow(unused)]
+use haze_gui::widgets::{heavy::scrollframe::ScrollFrame, switch::Switch, textbox::Textbox};
 /*
 NOTE: This file is just for my tests while im working on this lib,
 there will be from small to no comments
@@ -30,15 +31,16 @@ pub struct AppState {
 }
 
 fn main() {
-    let init_state = AppState { click_count: 0 };
-    let mut root = Win::new(init_state, RenderConfig::default());
-    root.title("Ya sumasheshi =3");
-    root.geometry(Size::new(400, 400));
-    //root.set_fps(60);
+    let init_state = AppState { click_count: 0 }; //initializing appstate
+    let mut root = Win::new(init_state, RenderConfig::default()); // Creating window
+
+    root.title("Simple counter"); //Setting window title
+    root.geometry(Size::new(400, 400)); //Setting window size
+    //root.resizable(false); //Can window be resized?
 
     let mut text = Label::new("counter_text".into());
     text.text(root.core.state.click_count.to_string());
-    text.bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
+    //text.bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
 
     let mut buttonadd = Button::new("add".into());
     buttonadd.text("+1".into());
@@ -50,22 +52,24 @@ fn main() {
     buttonsub.textcolor(Color::WHITE);
     buttonsub.color(Color::DARK_GRAY); //Setting up button with id, text, and background color
 
-    let mut a = ScrollFrame::new("a".into(), Axis::BOTH);
-    a.fill(Axis::BOTH);
-    //a.padding(10);
+    let mut entry = Textbox::new("textbox".into());
+    entry.fill(Axis::X);
+    let mut entrys = Textbox::new("textboxs".into());
+    entrys.fill(Axis::X);
+    let mut entryd = Textbox::new("textboxd".into());
+    entryd.fill(Axis::X);
 
-    let mut aa = Switch::new("aa".into());
-    aa.text("switch".into());
-
-    a.add_widget(text); //Adding counter label to main frame
-    a.add_widget(buttonadd); //Adding add button to main frame
-    a.add_widget(buttonsub); //Adding substract button to main frame
-    a.add_widget(aa);
-
-    root.core.mainframe.add_widget(a);
+    root.core.mainframe.add_widget(text); //Adding counter label to main frame
+    root.core.mainframe.add_widget(buttonadd); //Adding add button to main frame
+    root.core.mainframe.add_widget(buttonsub); //Adding substract button to main frame
+    root.core.mainframe.add_widget(entry);
+    root.core.mainframe.add_widget(entrys);
+    root.core.mainframe.add_widget(entryd);
 
     root.mainloop(|action, mainframe, state| {
+        //Mainloop where you procces events
         match action {
+            //proccesing action that buttons send when they are released
             Action::ButtonReleased(id) => {
                 if *id == hsid!("add") { // checking button id
                     state.click_count += 1; //changing counter data
@@ -78,7 +82,7 @@ fn main() {
                     }
                 }
                 if *id == hsid!("sub") { // checking button id
-                state.click_count -= 1; //changing counter data
+                    state.click_count -= 1; //changing counter data
                     //searching for counter label in mainframe using id
                     if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
@@ -88,7 +92,7 @@ fn main() {
                     }
                 }
             }
-        _ => {}
-    }});
+            _ => {} // ignoring other signals such as Action::None and Action::Hovered
+        }
+    });
 }
- 

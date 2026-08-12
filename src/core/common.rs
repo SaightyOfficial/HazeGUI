@@ -63,6 +63,7 @@ impl Default for SizeStrat {
 pub struct LayoutStrat {
     pub method: LayoutEnum,
     pub side: Side,
+    //pub is_spacer: bool,
 }
 
 impl Default for LayoutStrat {
@@ -70,6 +71,7 @@ impl Default for LayoutStrat {
         Self {
             method: LayoutEnum::AUTO,
             side: Side::MIDDLE,
+            //is_spacer: false,
         }
     }
 }

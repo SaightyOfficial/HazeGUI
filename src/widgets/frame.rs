@@ -29,6 +29,7 @@ pub struct Frame {
     pub usedright: UsedCord,
     pub lightchangeamount: u8,
     pub vecpushedactions: Vec<Action>,
+    pub is_bottom_to_top: bool,
 }
 
 impl Frame {
@@ -43,6 +44,7 @@ impl Frame {
             usedright: UsedCord::default(),
             lightchangeamount: 60,
             vecpushedactions: Vec::new(),
+            is_bottom_to_top: false,
         }
     }
 
@@ -64,6 +66,12 @@ impl Frame {
     ///Sets inner widget padding
     pub fn padding(&mut self, pad: i32) {
         self.padding = pad;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets inner widget padding
+    pub fn set_bottom_to_top(&mut self, val: bool) {
+        self.is_bottom_to_top = val;
         self.set_relayout_flag(true);
     }
 
@@ -98,6 +106,7 @@ impl Frame {
         } else {
             self.base.sizestrat.method = SizeEnum::FILL;
         }
+        self.set_relayout_flag(true);
     }
 
     ///Sets widget size, widget will not dynamicaly change size
@@ -126,6 +135,7 @@ impl Frame {
         if let Some(height) = h {
             self.base.sizestrat.max_height = height;
         }
+        self.set_relayout_flag(true);
     }
 
     ///Changes minimal widget size at runtime
@@ -141,6 +151,7 @@ impl Frame {
         if let Some(height) = h {
             self.base.sizestrat.min_height = height;
         }
+        self.set_relayout_flag(true);
     }
 
     //That function was hell to write... Idk how it works but it does YAAAAAAAAAAAY
@@ -236,8 +247,8 @@ impl Frame {
         }
 
         // Getting self inner sizes where widgets will be placed
-        let parent_width = self.base.size.width - border_padding;
-        let parent_height = self.base.size.height - border_padding;
+        let parent_width = (self.base.size.width - border_padding).max(0);
+        let parent_height = (self.base.size.height - border_padding).max(0);
 
         // Getting left fill height
         let fill_left_h = if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y
@@ -332,25 +343,53 @@ impl Frame {
                 }
 
                 // Final position setting by sides
-                match layoutstrat.side {
-                    Side::LEFT => {
-                        let x_pos = border_thickness;
-                        child.set_pos(Pos::new(x_pos, self.usedleft.used_y));
-                        self.usedleft.used_y += child_size.height;
-                    }
-                    Side::MIDDLE => {
-                        let center_zone_start = border_thickness + max_left_width;
-                        let x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
+                if !self.is_bottom_to_top {
+                    match layoutstrat.side {
+                        Side::LEFT => {
+                            let x_pos = border_thickness;
+                            child.set_pos(Pos::new(x_pos, self.usedleft.used_y));
+                            self.usedleft.used_y += child_size.height;
+                        }
+                        Side::MIDDLE => {
+                            let center_zone_start = border_thickness + max_left_width;
+                            let x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
 
-                        child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
-                        self.usedmiddle.used_y += child_size.height;
-                    }
-                    Side::RIGHT => {
-                        let min_right_x = border_thickness + max_left_width + middle_allowed_width;
-                        let x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
+                            child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
+                            self.usedmiddle.used_y += child_size.height;
+                        }
+                        Side::RIGHT => {
+                            let min_right_x = border_thickness + max_left_width + middle_allowed_width;
+                            let x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
 
-                        child.set_pos(Pos::new(x_pos, self.usedright.used_y));
-                        self.usedright.used_y += child_size.height;
+                            child.set_pos(Pos::new(x_pos, self.usedright.used_y));
+                            self.usedright.used_y += child_size.height;
+                        }
+                    }
+                } else {
+                    match layoutstrat.side {
+                        Side::LEFT => {
+                            let x_pos = border_thickness;
+                            let y_pos = self.base.size.height - self.usedleft.used_y - child_size.height;
+
+                            child.set_pos(Pos::new(x_pos, y_pos));
+                            self.usedleft.used_y += child_size.height;
+                        }
+                        Side::MIDDLE => {
+                            let center_zone_start = border_thickness + max_left_width;
+                            let x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
+                            let y_pos = self.base.size.height - self.usedmiddle.used_y - child_size.height;
+
+                            child.set_pos(Pos::new(x_pos, y_pos));
+                            self.usedmiddle.used_y += child_size.height;
+                        }
+                        Side::RIGHT => {
+                            let min_right_x = border_thickness + max_left_width + middle_allowed_width;
+                            let x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
+                            let y_pos = self.base.size.height - self.usedright.used_y - child_size.height;
+
+                            child.set_pos(Pos::new(x_pos, y_pos));
+                            self.usedright.used_y += child_size.height;
+                        }
                     }
                 }
             }

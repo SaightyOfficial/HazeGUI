@@ -1,5 +1,5 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event};
+use crate::core::event::{Action, Event, MKey};
 use crate::core::idpool::{get_id, regid};
 use crate::core::size::Size;
 use crate::core::widget::Widget;
@@ -242,11 +242,11 @@ impl Widget for Switch {
         //Button event handling
         match event {
             //On mouse click we are checking is this button inside, then if it is changins some values and making the button pressed and pushing action
-            Event::MouseClick { pos } => {
+            Event::MouseClick { pos, key } => {
                 if let Some(id) = get_id(self.id.clone()) {
                     let checkframeid = format!("{}.checkframe", id.clone());
                     
-                    if self.is_point_inside(*pos, pos_off) {
+                    if self.is_point_inside(*pos, pos_off) && *key == MKey::Left  {
                         self.is_on = !self.is_on;
 
                         if let Some(widget) = self.frame.find_mut(hsid!(&checkframeid)) {

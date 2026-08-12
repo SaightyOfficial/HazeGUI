@@ -1,11 +1,53 @@
 use crate::core::pos::Pos;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MKey {
+    Right,
+    Left,
+    Middle,
+    Back,
+    Forward,
+    None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum KKey {
+    Backspace,
+    Enter,
+    Space,
+    PrintScr,
+    Insert,
+    Delete,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    ArrowUp,
+    ArrowDown,
+    ArrowLeft,
+    ArrowRight,
+    Shift,
+    Tab,
+    Ctrl,
+    Super,
+    Alt,
+    Escape,
+    Fn,
+    F1, F2, F3, F4, F5, F6,
+    F7, F8, F9, F10, F11, F12,
+    ContextMenu,
+    CapsLock,
+    None
+}
+
 /// Represents input events that can be handled by widgets
+#[derive(Debug, Clone, PartialEq)]
 pub enum Event {
-    MouseClick { pos: Pos },
-    MouseRelease { pos: Pos },
+    MouseClick { pos: Pos, key: MKey },
+    MouseRelease { pos: Pos, key: MKey  },
     MouseMove { pos: Pos },
-    KeyPress { key: char },
+    KeyPress { ch: char, key: KKey },
+    KeyRelease { ch: char, key: KKey },
 }
 
 /// Actions requested by widgets to be processed by HazeGUI
@@ -25,8 +67,14 @@ pub enum Action {
     ScrollChanged(u64, f32),
     /// Switch was clicked and changed its value,
     SwitchChanged(u64, bool),
+    /// Textbox was focused
+    TextboxFocus(u64),
+    /// Textbox lost focus
+    TextboxUnfocus(u64),
+    /// Text inside textbox changed
+    TextboxTextChange(u64),
     /// Should be sent if something wants to redraw itself,
-    /// contains self rect (can and in most cases should be got by [`crate::Widget::get_self_rect`]),
+    /// contains self rect (can and in most cases should be got by [`crate::core::widget::Widget::get_self_rect`]),
     /// if contains [`None`] whole window will be redrawn
     RedrawRequest(Option<tiny_skia::Rect>),
     /// Should be sent if something wants to relayout, relayouts widget tree and automaticaly redraws whole window
