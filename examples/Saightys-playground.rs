@@ -1,3 +1,4 @@
+use haze_gui::core::render::cpurender::CPURenderConfig;
 #[allow(unused)]
 use haze_gui::widgets::{heavy::scrollframe::ScrollFrame, switch::Switch, textbox::Textbox};
 /*
@@ -15,7 +16,7 @@ use haze_gui::{
         common::Side,
         event::Action,
         size::Size,
-        common::Axis, renderconfig::RenderConfig, widget::Widget},
+        common::Axis, render::renderconfig::RenderBackend, widget::Widget},
     widgets::{
         
         button::Button,
@@ -32,14 +33,14 @@ pub struct AppState {
 
 fn main() {
     let init_state = AppState { click_count: 0 }; //initializing appstate
-    let mut root = Win::new(init_state, RenderConfig::default()); // Creating window
+    let mut root = Win::new(init_state, RenderBackend::CPU(CPURenderConfig::default())); // Creating window
 
     root.title("Simple counter"); //Setting window title
     root.geometry(Size::new(400, 400)); //Setting window size
     //root.resizable(false); //Can window be resized?
 
     let mut text = Label::new("counter_text".into());
-    text.text(root.core.state.click_count.to_string());
+    text.set_text(root.core.state.click_count.to_string());
     //text.bgcolor(Color::TRANSPARENT); //Setting up label with id, text, and background text color
 
     let mut buttonadd = Button::new("add".into());
@@ -77,7 +78,7 @@ fn main() {
                     if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.text(state.click_count.to_string()); //changing label text
+                            label.set_text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }
@@ -87,7 +88,7 @@ fn main() {
                     if let Some(widget) = mainframe.find_mut(hsid!("counter_text")) {
                         //assuming that what we are found is an label
                         if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                            label.text(state.click_count.to_string()); //changing label text
+                            label.set_text(state.click_count.to_string()); //changing label text
                         }
                     }
                 }

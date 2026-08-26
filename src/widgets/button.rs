@@ -1,13 +1,13 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event, MKey};
+use crate::core::event::{Action, DrawCommand, Event, MKey};
 use crate::core::idpool::{regid, get_id};
 use crate::hsid;
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use tiny_skia::{PixmapMut, Rect};
 
 ///Buton struct, stores everything button needs
 pub struct Button {
@@ -16,6 +16,7 @@ pub struct Button {
     pub hover_color: Option<Color>,
     is_hovered: bool,
     is_pressed: bool,
+    is_styled: bool,
 }
 
 impl Button {
@@ -34,6 +35,7 @@ impl Button {
             hover_color: None,
             is_hovered: false,
             is_pressed: false,
+            is_styled: true,
         }
     }
 
@@ -44,7 +46,7 @@ impl Button {
 
             if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
                 if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    label.text(new_text);
+                    label.set_text(new_text);
                 }
             }
         }
@@ -92,6 +94,13 @@ impl Button {
         self.set_dirty_flag(true);
     }
 
+    ///Will button slyling be applied?
+    pub fn is_styled(&mut self, arg: bool) {
+        self.is_styled = arg;
+        self.frame.style = FrameStyle::FLAT;
+        self.set_dirty_flag(true);
+    }
+
     //sizes
     ///Changes at runtime by which axises widget will stretch and fill itself
     pub fn fill(&mut self, cords: Axis) {
@@ -101,6 +110,26 @@ impl Button {
         } else {
             self.frame.base.sizestrat.method = SizeEnum::FILL;
         }
+    }
+
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.frame.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.frame.base.layoutstrat.is_spacer = spacer;
+        self.set_relayout_flag(true);
+    }
+
+    ///Changes framestyle light/dark difference from base color at runtime
+    pub fn light_change_amount(&mut self, amount: u8) {
+        self.frame.lightchangeamount = amount;
+        self.set_dirty_flag(true);
     }
 
     pub fn size(&mut self, size: Size) {
@@ -114,7 +143,7 @@ impl Button {
         self.set_relayout_flag(true);
     }
 
-    pub fn font_size(&mut self, size: f32) {
+    pub fn font_size(&mut self, size: i32) {
         if let Some(id) = get_id(self.id.clone()) {
             let labelid = format!("{}.label", id.clone());
 
@@ -169,7 +198,7 @@ impl Widget for Button {
     }
     fn draw(
         &self,
-        pixmap: &mut PixmapMut,
+        drawcommans: &mut Vec<DrawCommand>,
         pos_off: Pos,
         clip: Rect,
         _preferred_color: Option<Color>,
@@ -184,7 +213,7 @@ impl Widget for Button {
 
         //println!("{:?}", display_color);
 
-        self.frame.draw(pixmap, pos_off, clip, Some(display_color));
+        self.frame.draw(drawcommans, pos_off, clip, Some(display_color));
     }
 
     fn update_layout(&mut self, forced: bool) {
@@ -230,7 +259,9 @@ impl Widget for Button {
                 if self.is_point_inside(*pos, pos_off) && !self.is_pressed && *key == MKey::Left {
                     self.is_pressed = true;
                     actions.push(Action::ButtonClicked(self.id));
-                    self.frame.style(FrameStyle::SUNKEN);
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::SUNKEN);
+                    }
                 }
             }
             //Same thing here but we are pushing mouse release action
@@ -238,7 +269,9 @@ impl Widget for Button {
                 if self.is_point_inside(*pos, pos_off) && self.is_pressed && *key == MKey::Left  {
                     self.is_pressed = false;
                     actions.push(Action::ButtonReleased(self.id));
-                    self.frame.style(FrameStyle::RAISED);
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::RAISED);
+                    }
                 }
             }
             //Mouse hovering part
@@ -252,7 +285,9 @@ impl Widget for Button {
                 //If mouse is unhovered then are setting style to raised, changing a lot of values and and pushing unhovered action
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
-                    self.frame.style(FrameStyle::RAISED);
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::RAISED);
+                    }
                     self.is_pressed = false;
                     actions.push(Action::Unhovered(self.id));
                     self.set_dirty_flag(true);

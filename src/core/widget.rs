@@ -1,13 +1,13 @@
 use std::any::Any;
-
 use crate::core::color::Color;
+use crate::core::event::DrawCommand;
+use crate::core::shapes::Rect;
 use crate::core::common::LayoutStrat;
 use crate::core::common::SizeStrat;
 use crate::core::event::Action;
 use crate::core::event::Event;
 use crate::core::pos::Pos;
 use crate::core::size::Size;
-use tiny_skia::{PixmapMut, Rect};
 
 ///Struct used to store used coordinates, used in frame's composing engine
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -72,7 +72,7 @@ pub trait Widget: Any {
     ///  - "pos_off" - Absolute offset of the parent container
     ///  - "clip" - Clipping rect to prevent drawing outside of the parent widget
     ///  - "preferred_color" - Customization parameter that can be used in many ways, like being used to make button hovers
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, preferred_color: Option<Color>);
+    fn draw(&self, drawcommands: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, preferred_color: Option<Color>);
     fn is_point_inside(&self, global_point: Pos, parent_off: Pos) -> bool {
         let abs_x = parent_off.x + self.get_pos().x;
         let abs_y = parent_off.y + self.get_pos().y;
@@ -89,12 +89,12 @@ pub trait Widget: Any {
     fn set_size(&mut self, size: Size);
     fn set_pos(&mut self, pos: Pos);
     fn get_size(&self) -> Size;
-    fn get_self_rect(&self, pos_off: Pos) -> Option<tiny_skia::Rect> {
-        let abs_x = (pos_off.x + self.get_pos().x) as f32;
-        let abs_y = (pos_off.y + self.get_pos().y) as f32;
+    fn get_self_rect(&self, pos_off: Pos) -> Option<Rect> {
+        let abs_x = pos_off.x + self.get_pos().x;
+        let abs_y = pos_off.y + self.get_pos().y;
         let size = self.get_size();
         if let Some(dirty_rect) =
-            tiny_skia::Rect::from_xywh(abs_x, abs_y, size.width as f32, size.height as f32)
+            Rect::from_xywh(abs_x, abs_y, size.width, size.height)
         {
             return Some(dirty_rect);
         }

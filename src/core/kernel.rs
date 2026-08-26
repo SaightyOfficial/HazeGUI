@@ -1,18 +1,19 @@
 use crate::core;
-use crate::core::event::{KKey, MKey};
-use crate::core::renderconfig::RenderConfig;
+use crate::core::common::SizeEnum;
+use crate::core::event::{DrawCommand, KKey, MKey};
+use crate::core::render::rendercommands::Renderer;
+use crate::core::render::renderconfig::RenderBackend::{self};
 use crate::core::{event::Action, pos::Pos, size::Size, common::merge_rects};
 use core::color::Color;
+use core::shapes::Rect;
 use core::widget::Widget;
 use crate::widgets::frame;
-
-use tiny_skia::{Pixmap, Rect};
+use raw_window_handle::{HasWindowHandle, HasDisplayHandle};
 
 type UserCallback<T> = Box<dyn FnMut(&Action, &mut frame::Frame, &mut T)>;
 
 pub struct AppCore<T> {
-    pub backbuffer: Option<Pixmap>,
-    pub renderconf: RenderConfig,
+    pub render: RenderBackend,
     pub mainframe: frame::Frame,
     pub bufsize: Size,
     pub mouse_pos: Pos,
@@ -22,20 +23,21 @@ pub struct AppCore<T> {
     pub debug_thing: u32,
     pub redraw_actions: Vec<Action>,
     pub actions: Vec<Action>,
+    pub draw_command_list: Vec<DrawCommand>,
+    pub lastframebuffersize: i32,
 }
 
 impl<T> AppCore<T> {
-    pub fn new(init_state: T, renderstrat_given: RenderConfig) -> Self {
+    pub fn new(init_state: T, renderstrat_given: RenderBackend) -> Self {
         let mut mainframe_setter = frame::Frame::new("mainframe".into());
         mainframe_setter.pos(Pos::new(0, 0));
         mainframe_setter.size(Size::new(800, 600));
-        mainframe_setter.base.sizestrat.method = core::common::SizeEnum::MANUAL;
+        mainframe_setter.base.sizestrat.method = SizeEnum::MANUAL;
         mainframe_setter.color(Color::LIGHT_GRAY);
         mainframe_setter.set_relayout_flag(true);
         
         Self {
-            backbuffer: None,
-            renderconf: renderstrat_given,
+            render: renderstrat_given,
             mainframe: mainframe_setter,
             bufsize: Size::new(800, 600),
             mouse_pos: Pos::new(0, 0),
@@ -45,6 +47,8 @@ impl<T> AppCore<T> {
             debug_thing: 0,
             actions: Vec::with_capacity(16),
             redraw_actions: Vec::with_capacity(16),
+            draw_command_list: Vec::with_capacity(256),
+            lastframebuffersize: 256,
         }
     }
 
@@ -53,13 +57,20 @@ impl<T> AppCore<T> {
         self.redraw_actions.clear();
     }
 
+    pub fn init_window<W: HasWindowHandle + HasDisplayHandle>(&mut self, window: &W) {
+        self.render.init_window(window);
+    }
+
     pub fn handle_resize(&mut self, width: u32, height: u32) {
         self.bufsize = Size::new(width as i32, height as i32);
         self.mainframe.base.size = self.bufsize;
         self.mainframe.update_layout(true);
 
+        //if width > 0 && height > 0 {
+        //    self.backbuffer = Some(Pixmap::new(width, height).expect("Failed to resize backbuffer"));
+        //}
         if width > 0 && height > 0 {
-            self.backbuffer = Some(Pixmap::new(width, height).expect("Failed to resize backbuffer"));
+            self.render.begin(self.bufsize);
         }
         self.dirty_rect = Some(None);
     }
@@ -134,22 +145,44 @@ impl<T> AppCore<T> {
     }
 
     ///Rendering
-    pub fn draw_to_slice(&mut self, window_buffer: &mut [u32]) {
-        self.debug_thing += 1;
-        println!("Redrawing {}", self.debug_thing);
+    pub fn draw_to_slice(&mut self) {
+        self.debug_thing = self.debug_thing.wrapping_add(1);
 
-        if let (Some(backbuffer), Some(dirty_rect)) = (&mut self.backbuffer, self.dirty_rect.take()) {
-            let clip_rect = match dirty_rect {
-                Some(rect) => rect,
-                None => Rect::from_xywh(0.0, 0.0, self.bufsize.width as f32, self.bufsize.height as f32).unwrap(),
-            };
+        if let Some(dirty_rect) = self.dirty_rect.take() {
+            let clip_rect = dirty_rect.unwrap_or_else(|| {
+                Rect::from_xywh(0, 0, self.bufsize.width, self.bufsize.height).unwrap()
+            });
 
-            //println!("{:?}", dirty_rect);
+            // 1. Собираем команды текущего кадра
+            self.mainframe.draw(&mut self.draw_command_list, Pos::new(0, 0), clip_rect, None);
 
-            self.mainframe.draw(&mut backbuffer.as_mut(), Pos::new(0, 0), clip_rect, None);
+            // 2. РЕНДЕР БЭКЕНДОМ (здесь твой бэкенд выгребает self.draw_command_list)
+            // render_backend.draw(&self.draw_command_list, window_buffer);
+            for da in &self.draw_command_list {
+                match da {
+                    DrawCommand::Rect(rect, color, clip) => {
+                        self.render.drawrect(*rect, *color, *clip);
+                    }
+                    DrawCommand::Text(rect, color, textcolor, text, cliprect, font_size, padding) => {
+                        self.render.drawtext(*rect, *color, *textcolor, text.clone(), *cliprect, *font_size, *padding);
+                    }
+                }
+            }
 
-            let raw_window_bytes: &mut [u8] = bytemuck::cast_slice_mut(window_buffer);
-            raw_window_bytes.copy_from_slice(bytemuck::cast_slice(backbuffer.data()));
+            //Flushing rendered image to window surface
+            self.render.flush();
+
+            // 3. Аналитика длины
+            let current_len = self.draw_command_list.len();
+            self.lastframebuffersize = current_len as i32;
+
+            // 4. Очищаем команды СРАЗУ ПОСЛЕ РЕНДЕРА (все Arc::drop сработают прямо сейчас)
+            self.draw_command_list.clear();
+
+            // 5. Умный шринк капасити (если нужно поджать память)
+            if self.draw_command_list.capacity() > 512 && current_len < self.draw_command_list.capacity() / 4 {
+                self.draw_command_list.shrink_to((current_len * 2).max(256));
+            }
         }
 
         self.mainframe.set_dirty_flag(false);

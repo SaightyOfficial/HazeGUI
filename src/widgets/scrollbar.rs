@@ -1,11 +1,11 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event, MKey};
+use crate::core::event::{Action, DrawCommand, Event, MKey};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
 use crate::widgets::frame::{Frame, FrameStyle};
-use tiny_skia::{PixmapMut, Rect};
 
 ///ScrollBar struct, stores everything scrollbar needs
 pub struct ScrollBar {
@@ -15,11 +15,12 @@ pub struct ScrollBar {
     pub widgetaxis: Axis,
     is_hovered: bool,
     is_dragged: bool,
-    dragstartmouse: f32, // Универсальное имя вместо dragstartmousey
+    dragstartmouse: f32,
+    is_inverted: bool,
 }
 
 impl ScrollBar {
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, is_inverted: bool) -> Self {
         let mut framesetter = Frame::new(format!("{}.frame", id.clone()));
         framesetter.style(FrameStyle::SUNKEN);
         framesetter.min_size(Some(Some(15)), Some(Some(15)));
@@ -36,6 +37,7 @@ impl ScrollBar {
             is_hovered: false,
             is_dragged: false,
             dragstartmouse: 0.0,
+            is_inverted: is_inverted,
         }
     }
 
@@ -76,11 +78,24 @@ impl ScrollBar {
     }
 
     pub fn axis(&mut self, axis: Axis) { 
-        // Просто сохраняем ось, никакой самодеятельности с fill() дочернего фрейма!
         self.widgetaxis = match axis {
             Axis::X => Axis::X,
             _ => Axis::Y,
         };
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.frame.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.frame.base.layoutstrat.is_spacer = spacer;
         self.set_relayout_flag(true);
     }
 
@@ -124,12 +139,11 @@ impl Widget for ScrollBar {
     fn get_id(&self) -> u64 {
         self.id
     }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
-        self.frame.draw(pixmap, pos_off, clip, None);
+    fn draw(&self, drawcommans: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+        self.frame.draw(drawcommans, pos_off, clip, None);
     }
 
     fn update_layout(&mut self, forced: bool) {
-        // 1. Сначала даем базовому фрейму обновить свои размеры, если они AUTO/FILL
         self.frame.update_layout(forced);
 
         let bordersize = match self.frame.style {
@@ -143,28 +157,24 @@ impl Widget for ScrollBar {
 
         if let Some(widget) = self.frame.children.get_mut(0) {
             if let Some(thumb) = widget.as_any_mut().downcast_mut::<Frame>() {
-                // Сбрасываем любые автоматические стратегии размеров ползунка в MANUAL, 
-                // иначе лайаут родителя сожрет наши ручные вычисления
                 thumb.base.sizestrat.method = SizeEnum::MANUAL;
                 thumb.base.layoutstrat.method = LayoutEnum::MANUAL;
+                let vis_val = if self.is_inverted { 1.0 - self.scroll_value } else { self.scroll_value };
 
                 if self.widgetaxis == Axis::X {
-                    // Математика для ГОРИЗОНТАЛЬНОГО ползунка
                     let thumb_width = (aval_w * 0.20).max(10.0);
                     thumb.base.size = Size::new(thumb_width as i32, aval_h as i32);
                     
-                    let thumb_x = (self.scroll_value * (aval_w - thumb_width)).round() as i32 + bordersize;
+                    let thumb_x = (vis_val * (aval_w - thumb_width)).round() as i32 + bordersize;
                     thumb.base.pos = Pos::new(thumb_x, bordersize);
                 } else {
-                    // Математика для ВЕРТИКАЛЬНОГО ползунка
                     let thumb_height = (aval_h * 0.20).max(10.0);
                     thumb.base.size = Size::new(aval_w as i32, thumb_height as i32);
                     
-                    let thumb_y = (self.scroll_value * (aval_h - thumb_height)).round() as i32 + bordersize;
+                    let thumb_y = (vis_val * (aval_h - thumb_height)).round() as i32 + bordersize;
                     thumb.base.pos = Pos::new(bordersize, thumb_y);
                 }
 
-                // 2. И только после того, как вбили координаты руками, форсированно обновляем сам ползунок
                 thumb.update_layout(true);
             }
         }
@@ -221,7 +231,6 @@ impl Widget for ScrollBar {
             _ => 2.0,
         };
 
-        // Общие ивенты для обеих осей, чтобы не дублировать код
         match event {
             Event::MouseRelease { pos: _, key } => {
                 if self.is_dragged && *key == MKey::Left {
@@ -236,8 +245,7 @@ impl Widget for ScrollBar {
                 } else if !now_hovered && self.is_hovered {
                     self.is_hovered = false;
                 }
-                // Если мышь просто двигается, но драга нет — выходим, 
-                // иначе управление передается ниже в обработку драга по осям.
+
                 if !self.is_dragged {
                     return;
                 }
@@ -245,7 +253,6 @@ impl Widget for ScrollBar {
             _ => {}
         }
 
-        // А вот теперь считаем логику клика и драга в зависимости от оси
         match self.widgetaxis {
             Axis::Y => {
                 let aval_frame_h = if self.frame.style == FrameStyle::FLAT { size.height as f32 } else { size.height as f32 - 4.0 };
@@ -270,7 +277,8 @@ impl Widget for ScrollBar {
                                 let click_y_rel = (pos.y - track_abs_pos.y) as f32 - bordersize;
                                 let new_thumb_y = (click_y_rel - thumb_height / 2.0).clamp(0.0, max_travel);
                                 
-                                self.scroll_value = new_thumb_y / max_travel;
+                                let raw_scroll = new_thumb_y / max_travel;
+                                self.scroll_value = if self.is_inverted { 1.0 - raw_scroll } else { raw_scroll };
                                 actions.push(Action::ScrollChanged(self.id, self.scroll_value));
                                 
                                 self.is_dragged = true;
@@ -282,7 +290,10 @@ impl Widget for ScrollBar {
                     }
                     Event::MouseMove { pos } => {
                         if max_travel > 0.0 {
-                            let delta_y = pos.y as f32 - self.dragstartmouse;
+                            let mut delta_y = pos.y as f32 - self.dragstartmouse;
+                            if self.is_inverted {
+                                delta_y = -delta_y;
+                            }
                             if delta_y.abs() > 0.0 {
                                 let current_thumb_y = self.scroll_value * max_travel;
                                 let new_thumb_y = (current_thumb_y + delta_y).clamp(0.0, max_travel);
@@ -325,7 +336,8 @@ impl Widget for ScrollBar {
                                 let click_x_rel = (pos.x - track_abs_pos.x) as f32 - bordersize;
                                 let new_thumb_x = (click_x_rel - thumb_width / 2.0).clamp(0.0, max_travel);
                                 
-                                self.scroll_value = new_thumb_x / max_travel;
+                                let raw_scroll = new_thumb_x / max_travel;
+                                self.scroll_value = if self.is_inverted { 1.0 - raw_scroll } else { raw_scroll };
                                 actions.push(Action::ScrollChanged(self.id, self.scroll_value));
                                 
                                 self.is_dragged = true;
@@ -337,7 +349,10 @@ impl Widget for ScrollBar {
                     }
                     Event::MouseMove { pos } => {
                         if max_travel > 0.0 {
-                            let delta_x = pos.x as f32 - self.dragstartmouse;
+                            let mut delta_x = pos.x as f32 - self.dragstartmouse;
+                            if self.is_inverted {
+                                delta_x = -delta_x;
+                            }
                             if delta_x.abs() > 0.0 {
                                 let current_thumb_x = self.scroll_value * max_travel;
                                 let new_thumb_x = (current_thumb_x + delta_x).clamp(0.0, max_travel);

@@ -4,5 +4,6 @@ pub mod label;
 pub mod scrollbar;
 pub mod switch;
 pub mod textbox;
+pub mod framebutton;
 
 pub mod heavy;

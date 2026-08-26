@@ -1,47 +1,19 @@
 use crate::core::common::{Axis, SizeEnum, SizeStrat, LayoutEnum, LayoutStrat, Side, intersect_rects};
-use crate::core::event::{Action, Event};
+use crate::core::event::{Action, DrawCommand, Event};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::{Widget, WidgetBase};
 use crate::core::{color::Color, pos::Pos};
-use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
-use std::collections::HashMap;
-use std::sync::Mutex;
-
-use fontdue::{Font, FontSettings};
-
-static FONT_DATA: &[u8] = include_bytes!("../../fonts/JetBrainsMono-Regular.ttf");
-
-//Glyph cache and font data
-lazy_static::lazy_static! {
-    pub static ref GLYPH_CACHE: Mutex<HashMap<(char, u32), (fontdue::Metrics, Vec<u8>)>> = Mutex::new(HashMap::new());
-    pub static ref FONT: Font = {
-        Font::from_bytes(FONT_DATA, FontSettings::default()).expect("Font load error")
-    };
-}
-
-///Rasterizes character and saves it to glyph cache
-pub fn get_glyph(c: char, font_size: f32) -> (fontdue::Metrics, Vec<u8>) {
-    let size_key = (font_size * 100.0) as u32;
-    let mut cache = GLYPH_CACHE.lock().expect("Poisoned glyph cache");
-
-    if let Some(glyph) = cache.get(&(c, size_key)) {
-        return glyph.clone();
-    }
-
-    //Rasterising font and saving it
-    let (metrics, bitmap) = FONT.rasterize(c, font_size);
-    cache.insert((c, size_key), (metrics.clone(), bitmap.clone()));
-    
-    (metrics, bitmap)
-}
+use std::sync::Arc;
+use crate::core::render::font::FONT;
 
 ///Label struct where all label data is stored
 #[derive(Clone)]
 pub struct Label {
     pub base: WidgetBase,
-    pub text: String,
-    pub font_size: f32,
+    pub text: Arc<String>,
+    pub font_size: i32,
     pub textcolor: Color,
     padding: f32,
 }
@@ -50,8 +22,8 @@ impl Label {
     pub fn new(id: String) -> Self {
         let mut label = Self {
             base: WidgetBase::new(regid(id)),
-            text: String::new(),
-            font_size: 14.0,
+            text: Arc::from("".to_string()),
+            font_size: 14,
             textcolor: Color::BLACK,
             padding: 2.0,
         };
@@ -68,12 +40,12 @@ impl Label {
         let mut width = 0.0; //Line width
 
         //Getting char catrics
-        let line_metrics = FONT.horizontal_line_metrics(self.font_size);
+        let line_metrics = FONT.horizontal_line_metrics(self.font_size as f32);
 
         //Line height
         let lheight = line_metrics
             .map(|m| m.new_line_size)
-            .unwrap_or(self.font_size);
+            .unwrap_or(self.font_size as f32);
 
         height += lheight;
 
@@ -83,7 +55,7 @@ impl Label {
                 height += lheight;
                 width = 0.0;
             } else {
-                let metrics = FONT.metrics(ch, self.font_size);
+                let metrics = FONT.metrics(ch, self.font_size as f32);
                 width += metrics.advance_width;
             }
         }
@@ -97,24 +69,27 @@ impl Label {
         }
     }
 
-    ///Getting text from label
-    pub fn get_text(&self) -> String {
+    /// Получение cheap-clone Arc
+    pub fn get_text(&self) -> Arc<String> {
         self.text.clone()
     }
 
-    ///Getting mutable reference to text from label
-    pub fn get_text_mutref(&mut self) -> &mut String {
-        &mut self.text
-    }
-
-    ///Getting immutable reference to text from label
-    pub fn get_text_ref(&self) -> &String {
+    /// Неизменяемая ссылка на String
+    pub fn get_text_ref(&self) -> &str {
         &self.text
     }
 
-    ///Setting text for label at runtime
-    pub fn text(&mut self, new_text: String) {
-        self.text = new_text;
+    /// Мутируемая ссылка на String с защитой Arc::make_mut
+    /// Если Arc уникален, мутирует на месте без аллокаций.
+    pub fn get_text_mutref(&mut self) -> &mut String {
+        self.set_dirty_flag(true);
+        // Важно: update_size вызовешь после изменений, если нужно
+        Arc::make_mut(&mut self.text)
+    }
+
+    /// Быстрая установка нового текста (принимает String, &str или Arc<String>)
+    pub fn set_text(&mut self, new_text: impl Into<Arc<String>>) {
+        self.text = new_text.into();
         self.update_size();
         self.set_dirty_flag(true);
     }
@@ -126,6 +101,20 @@ impl Label {
         self.set_relayout_flag(true);
     }
 
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.base.layoutstrat.is_spacer = spacer;
+        self.set_relayout_flag(true);
+    }
+
     ///Changes widget side at runtime, there are only [`Side::LEFT`], [`Side::MIDDLE`] and [`Side::RIGHT`], Y axis position depends on order by which widgets are added in your code
     pub fn side(&mut self, side: Side) {
         self.base.layoutstrat.side = side;
@@ -134,7 +123,7 @@ impl Label {
 
     //colors
     ///Setting font size for label at runtime
-    pub fn font_size(&mut self, size: f32) {
+    pub fn font_size(&mut self, size: i32) {
         self.font_size = size;
         self.update_size();
         self.set_relayout_flag(true);
@@ -178,8 +167,8 @@ impl Label {
     }
 
     pub fn get_cursor_pos(&self, byte_offset: usize) -> (Pos, i32) {
-        let line_metrics = FONT.horizontal_line_metrics(self.font_size);
-        let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size);
+        let line_metrics = FONT.horizontal_line_metrics(self.font_size as f32);
+        let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size as f32);
 
         let mut x = self.padding;
         let mut y = self.padding / 2.0;
@@ -193,7 +182,7 @@ impl Label {
                 x = self.padding;
                 y += lheight;
             } else {
-                let metrics = FONT.metrics(c, self.font_size);
+                let metrics = FONT.metrics(c, self.font_size as f32);
                 x += metrics.advance_width;
             }
         }
@@ -216,7 +205,7 @@ impl Label {
                 break;
             }
 
-            let metrics = FONT.metrics(c, self.font_size);
+            let metrics = FONT.metrics(c, self.font_size as f32);
             let char_width = metrics.advance_width;
 
             // Половина ширины символа — чтобы клик ближе к правому краю буквы ставил каретку ПОСЛЕ неё
@@ -246,149 +235,20 @@ impl Widget for Label {
     }
     fn draw(
         &self,
-        pixmap: &mut PixmapMut,
+        drawcommands: &mut Vec<DrawCommand>,
         pos_off: Pos,
         clip: Rect,
         _preferred_color: Option<Color>,
     ) {
         //Getting absolute coordinates
-        let abs_x = (pos_off.x + self.base.pos.x) as f32;
-        let abs_y = (pos_off.y + self.base.pos.y) as f32;
+        let abs_x = pos_off.x + self.base.pos.x;
+        let abs_y = pos_off.y + self.base.pos.y;
 
-        //Backgournd render, BGRA needed
-        if let Some(bg_rect) = Rect::from_xywh(abs_x, abs_y, self.base.size.width as f32, self.base.size.height as f32) {
-            let mut bg_paint = Paint::default();
-            bg_paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+        //Backgournd and text render
+        if let Some(bg_rect) = Rect::from_xywh(abs_x, abs_y, self.base.size.width, self.base.size.height) {
             if let Some(visible_bg) = intersect_rects(bg_rect, clip) {
-                pixmap.fill_rect(visible_bg, &bg_paint, tiny_skia::Transform::identity(), None);
+                drawcommands.push(DrawCommand::Text(visible_bg, self.base.bgcolor, self.textcolor, self.text.clone(), visible_bg, self.font_size, self.padding));
             }
-        }
-
-        //Font metrics for proper displaying
-        let line_metrics = FONT.horizontal_line_metrics(self.font_size);
-        let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size);
-        let ascent = line_metrics.map(|m| m.ascent).unwrap_or(self.font_size * 0.75);
-
-        let mut y_cursor = abs_y + self.padding / 2.0;
-        let mut x_cursor = abs_x + self.padding;
-
-        let img_w = pixmap.width() as i32;
-        let img_h = pixmap.height() as i32;
-        let pixels = pixmap.pixels_mut();
-
-        //Clips
-        let clip_top = clip.top() as i32;
-        let clip_bottom = clip.bottom() as i32;
-        let clip_left = clip.left() as i32;
-        let clip_right = clip.right() as i32;
-
-        for c in self.text.chars() {
-            // Handle new line character
-            if c == '\n' {
-                y_cursor += lheight;
-                x_cursor = abs_x + self.padding;
-                continue;
-            }
-
-            // If line is too high then skip character vertically
-            if y_cursor + lheight < clip.top() as f32 {
-                continue;
-            }
-
-            // If line is too low, stop rendering completely
-            if y_cursor > clip_bottom as f32 {
-                break;
-            }
-
-            // Getting char glyph
-            let (metrics, bitmap) = get_glyph(c, self.font_size);
-            
-            // If space then smart skip
-            if c == ' ' {
-                x_cursor += metrics.advance_width;
-                continue;
-            }
-
-            // If letter is too left then skip
-            if x_cursor + metrics.advance_width < clip.left() as f32 {
-                x_cursor += metrics.advance_width;
-                continue;
-            }
-            
-            // If letter is too right then skip current char and move x
-            if x_cursor > clip_right as f32 {
-                x_cursor += metrics.advance_width;
-                continue;
-            }
-
-            let baseline = y_cursor + ascent;
-
-            if metrics.width > 0 && metrics.height > 0 {
-                //Getting letter coordinates
-                let px_base = (x_cursor + metrics.xmin as f32).round() as i32;
-                let py_base = (baseline - metrics.height as f32 - metrics.ymin as f32).round() as i32;
-
-                //Calculating clip rects
-                let start_row = 0.max(clip_top - py_base).max(0);
-                let end_row = (metrics.height as i32).min(clip_bottom - py_base).min(img_h - py_base);
-                
-                let start_col = 0.max(clip_left - px_base).max(0);
-                let end_col = (metrics.width as i32).min(clip_right - px_base).min(img_w - px_base);
-
-                if start_row < end_row && start_col < end_col {
-                    for row in start_row..end_row {
-                        let screen_y = py_base + row;
-                        let row_offset = (screen_y * img_w) as usize;
-                        let bitmap_row_offset = (row as usize) * metrics.width;
-
-                        for col in start_col..end_col {
-                            let alpha = bitmap[bitmap_row_offset + (col as usize)] as u32;
-                            if alpha == 0 { continue; } //Skipping empty pixels
-
-                            let screen_x = px_base + col;
-                            let pixel_idx = row_offset + screen_x as usize;
-
-                            //Text color with antialiasing
-                            let fg_color = tiny_skia::ColorU8::from_rgba(
-                                self.textcolor.r,
-                                self.textcolor.g,
-                                self.textcolor.b,
-                                alpha as u8,
-                            ).premultiply();
-
-                            //Color math (BGRA / little-endian safe blend preserved)
-                            if alpha == 255 {
-                                pixels[pixel_idx] = fg_color;
-                            } else {
-                                //Calculating alpha blending by using linear interpolation
-                                let bg_color = pixels[pixel_idx];
-                                let bg_a = bg_color.alpha() as u32;
-                                let bg_r = bg_color.red() as u32;
-                                let bg_g = bg_color.green() as u32;
-                                let bg_b = bg_color.blue() as u32;
-
-                                let fg_a = fg_color.alpha() as u32;
-                                let fg_r = fg_color.red() as u32;
-                                let fg_g = fg_color.green() as u32;
-                                let fg_b = fg_color.blue() as u32;
-
-                                let inv_a = 255 - fg_a;
-                                let out_a = fg_a + (bg_a * inv_a) / 255;
-                                let out_r = fg_r + (bg_r * inv_a) / 255;
-                                let out_g = fg_g + (bg_g * inv_a) / 255;
-                                let out_b = fg_b + (bg_b * inv_a) / 255;
-
-                                if let Some(blended) = tiny_skia::PremultipliedColorU8::from_rgba(
-                                    out_r as u8, out_g as u8, out_b as u8, out_a as u8
-                                ) {
-                                    pixels[pixel_idx] = blended;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            x_cursor += metrics.advance_width; //Next character
         }
     }
     fn get_size(&self) -> Size {

@@ -1,6 +1,4 @@
-use tiny_skia::Rect;
-
-use crate::core::errors::RectError;
+use crate::core::{errors::RectError, shapes::Rect};
 
 /// Enum used for storing layout strategy in [`LayoutStrat`]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,7 +61,8 @@ impl Default for SizeStrat {
 pub struct LayoutStrat {
     pub method: LayoutEnum,
     pub side: Side,
-    //pub is_spacer: bool,
+    pub is_spacer: bool,
+    pub is_greedy: bool,
 }
 
 impl Default for LayoutStrat {
@@ -71,12 +70,13 @@ impl Default for LayoutStrat {
         Self {
             method: LayoutEnum::AUTO,
             side: Side::MIDDLE,
-            //is_spacer: false,
+            is_spacer: false,
+            is_greedy: false,
         }
     }
 }
 
-/// Checks if [`tiny_skia::Rect`] are intersecting each other
+/// Checks if [`crate::core::shapes::Rect`]'s are intersecting each other amd returns intersected rect, if not returns [`None`]
 pub fn intersect_rects(a: Rect, b: Rect) -> Option<Rect> {
     let left = a.left().max(b.left()); //Getting maximum left value
     let top = a.top().max(b.top()); //Getting maximum top value
@@ -91,15 +91,14 @@ pub fn intersect_rects(a: Rect, b: Rect) -> Option<Rect> {
     }
 }
 
-/// Merges two [`tiny_skia::Rect`] into a bigger one by making a bigger one from max/min coordinates
+/// Merges two [`crate::core::shapes::Rect`]'s into a bigger one by making a bigger one from max/min coordinates
 pub fn merge_rects(a: Rect, b: Rect) -> Result<Rect, RectError> {
     let left = a.left().min(b.left()); //Getting minimum left value
     let top = a.top().min(b.top()); //Getting minimum top value
     let right = a.right().max(b.right()); //Getting maximum right value
     let bottom = a.bottom().max(b.bottom()); //Getting maximum bottom value
 
-    let merged = tiny_skia::Rect::from_xywh(left, top, right - left, bottom - top)
-        .ok_or(RectError::InvalidRectSize)?;
+    let merged = Rect::from_xywh(left, top, right - left, bottom - top).ok_or(RectError::InvalidRectSize)?;
 
     Ok(merged)
 }

@@ -1,4 +1,6 @@
-use crate::core::pos::Pos;
+use std::sync::Arc;
+
+use crate::core::{color::Color, pos::Pos, shapes::Rect};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MKey {
@@ -76,9 +78,18 @@ pub enum Action {
     /// Should be sent if something wants to redraw itself,
     /// contains self rect (can and in most cases should be got by [`crate::core::widget::Widget::get_self_rect`]),
     /// if contains [`None`] whole window will be redrawn
-    RedrawRequest(Option<tiny_skia::Rect>),
+    RedrawRequest(Option<Rect>),
     /// Should be sent if something wants to relayout, relayouts widget tree and automaticaly redraws whole window
     UpdateLayoutRequest,
     /// Custom action, has widget id and String with other data that you will need, can be sended only by manual push by using [`crate::frame::Frame::push_action`]
     CustomAction(u64,String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DrawCommand {
+    ///rect, bgcolor, clip
+    Rect(Rect, Color, Rect),
+    ///rect, bgcolor, textcolor, text, clip, font_size, padding
+    Text(Rect, Color, Color, Arc<String>, Rect, i32, f32),
+    //DrawTexture(Rect, ),
 }

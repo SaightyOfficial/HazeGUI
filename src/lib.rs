@@ -1,12 +1,9 @@
 pub mod core;
 pub mod widgets;
 
-use crate::core::{event::{Action, MKey}, renderconfig::RenderConfig, size::Size};
+use crate::core::{event::{Action, MKey}, render::renderconfig::RenderBackend, size::Size};
 use core::kernel::AppCore;
 use widgets::frame;
-
-use softbuffer::{Context, Surface};
-use std::num::NonZeroU32;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -17,7 +14,6 @@ use winit::{
 
 pub struct Win<T> {
     window: Option<Arc<Window>>,
-    surface: Option<Surface<Arc<Window>, Arc<Window>>>,
     pub core: AppCore<T>,
     resizable: bool,
     title: String,
@@ -30,10 +26,9 @@ pub struct Win<T> {
 }
 
 impl<T> Win<T> {
-    pub fn new(init_state: T, rconf: RenderConfig) -> Self {
+    pub fn new(init_state: T, rconf: RenderBackend) -> Self {
         Self { 
             window: None,
-            surface: None,
             core: AppCore::new(init_state, rconf),
             resizable: true,
             title: String::from("HazeGUI Window"),
@@ -81,13 +76,12 @@ impl<T> ApplicationHandler for Win<T> {
         if let Some(max) = self.maxsize { attributes = attributes.with_max_inner_size(winit::dpi::PhysicalSize::new(max.width as u32, max.height as u32)); }
 
         let window = Arc::new(event_loop.create_window(attributes).expect("Failed to initialize window"));
-        let context = Context::new(window.clone()).expect("Failed to initialize window context");
-        let surface = Surface::new(&context, window.clone()).expect("Failed to initialize window surface");
-
+        
+        // Передаем window как `&Window`, который реализует HasWindowHandle + HasDisplayHandle
+        self.core.init_window(window.as_ref());
         self.core.handle_resize(self.winsize.width as u32, self.winsize.height as u32);
 
         self.window = Some(window);
-        self.surface = Some(surface);
 
         if let Some(window) = &self.window { window.request_redraw(); }
     }
@@ -99,25 +93,14 @@ impl<T> ApplicationHandler for Win<T> {
             WindowEvent::CloseRequested => event_loop.exit(),
             
             WindowEvent::RedrawRequested => {
-                if let Some(surface) = &mut self.surface {
-                    if let Ok(mut buffer) = surface.buffer_mut() {
-                        self.core.draw_to_slice(&mut buffer);
-                        let _ = buffer.present();
-                    }
-                }
-                //self.needs_redraw = false;
+                self.core.draw_to_slice();
             }
             
             WindowEvent::Resized(new_size) => {
                 if new_size.width > 0 && new_size.height > 0 {
                     self.winsize = Size::new(new_size.width as i32, new_size.height as i32);
+                    // Вся работа с поверхностью ушла в handle_resize через renderer.begin()
                     self.core.handle_resize(new_size.width, new_size.height);
-
-                    if let Some(surface) = &mut self.surface {
-                        if let (Some(w), Some(h)) = (NonZeroU32::new(new_size.width), NonZeroU32::new(new_size.height)) {
-                            let _ = surface.resize(w, h);
-                        }
-                    }
                 }
             }
             
@@ -185,14 +168,11 @@ impl<T> ApplicationHandler for Win<T> {
                     Key::Named(NamedKey::F10) => crate::core::event::KKey::F10,
                     Key::Named(NamedKey::F11) => crate::core::event::KKey::F11,
                     Key::Named(NamedKey::F12) => crate::core::event::KKey::F12,
-                    // Якщо це звичайний друкований символ або цифра, у KKey можна ставити None, 
-                    // оскільки для них у тебе вже є окремий параметр `ch: char`!
+                    
                     Key::Character(_) => crate::core::event::KKey::None,
 
                     _ => {
-                        // ДЕБАГ: якщо прилетить якась зовсім екзотична кнопка, 
-                        // ти побачиш її в терміналі і зможеш додати у світ
-                        println!("Unknown key: {:?}", event.logical_key);
+                        //println!("Unknown key: {:?}", event.logical_key);
                         crate::core::event::KKey::None
                     }
                 };

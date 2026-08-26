@@ -1,61 +1,36 @@
 use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use crate::core::event::{Action, DrawCommand, Event, MKey};
-use crate::core::idpool::{get_id, regid};
+use crate::core::idpool::{regid};
 use crate::core::size::Size;
 use crate::core::shapes::Rect;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
-use crate::hsid;
 use crate::widgets::frame::{Frame, FrameStyle};
-use crate::widgets::label::Label;
 
-///Switch struct, stores everything switch needs
-pub struct Switch {
+///FrameButton struct, stores everything framebutton needs
+pub struct FrameButton {
     pub id: u64,
     pub frame: Frame,
-    pub check_color: Color,
-    pub is_on: bool,
+    pub hover_color: Option<Color>,
+    is_hovered: bool,
+    is_pressed: bool,
+    is_styled: bool,
 }
 
-impl Switch {
-    pub fn new(id: String) -> Self {
+impl FrameButton {
+    pub fn new(id: String, is_styled: bool) -> Self {
         let mut framesetter = Frame::new(format!("{}.frame", id.clone()));
-
-        let mut textsetter = Label::new(format!("{}.label", id.clone()));
-        textsetter.bgcolor(Color::TRANSPARENT);
-        textsetter.side(Side::RIGHT);
-
-        let mut checkcontsetter = Frame::new(format!("{}.checkcontframe", id.clone()));
-        checkcontsetter.style(FrameStyle::SUNKEN);
-        checkcontsetter.side(Side::LEFT);
-        checkcontsetter.padding(3);
-
-        let mut checksetter = Frame::new(format!("{}.checkframe", id.clone()));
-        checksetter.min_size(Some(Some(10)), Some(Some(10)));
-        //checksetter.size(Size::new(10, 10));
-        
-        checkcontsetter.add_widget(checksetter);
-
-        framesetter.add_widget(textsetter);
-        framesetter.add_widget(checkcontsetter);
+        if is_styled {
+            framesetter.style(FrameStyle::RAISED);
+        }
 
         Self {
             id: regid(id.clone()),
             frame: framesetter,
-            check_color: Color::BLACK,
-            is_on: false,
-        }
-    }
-    ///Changes switch text at runtime
-    pub fn text(&mut self, new_text: String) {
-        if let Some(id) = get_id(self.id.clone()) {
-            let labelid = format!("{}.label", id.clone());
-
-            if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
-                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    label.set_text(new_text);
-                }
-            }
+            hover_color: None,
+            is_hovered: false,
+            is_pressed: false,
+            is_styled: is_styled,
         }
     }
 
@@ -74,7 +49,7 @@ impl Switch {
     }
 
     //colors
-    ///Sets switch color 
+    ///Sets button color 
     pub fn color(&mut self, new_color: Color) {
         //self.text.base.bgcolor = new_color;
         self.frame.base.bgcolor = new_color;
@@ -82,46 +57,22 @@ impl Switch {
         self.set_dirty_flag(true);
     }
 
-    ///Sets text color
-    pub fn textcolor(&mut self, new_color: Color) {
-        if let Some(id) = get_id(self.id.clone()) {
-            let labelid = format!("{}.label", id.clone());
+    ///Changes framestyle light/dark difference from base color at runtime
+    pub fn light_change_amount(&mut self, amount: u8) {
+        self.frame.lightchangeamount = amount;
+        self.set_dirty_flag(true);
+    }
 
-            if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
-                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    label.color(new_color);
-                }
-            }
-        }
+    ///Will button slyling be applied?
+    pub fn is_styled(&mut self, arg: bool) {
+        self.is_styled = arg;
+        self.set_dirty_flag(true);
     }
 
     ///Sets hover color
-    pub fn checkcolor(&mut self, new_color: Color) {
-        self.check_color = new_color;
-
-        if self.is_on {
-            if let Some(id) = get_id(self.id.clone()) {
-                let wid = format!("{}.checkframe", id.clone());
-
-                if let Some(widget) = self.frame.find_mut(hsid!(&wid)) {
-                    if let Some(label) = widget.as_any_mut().downcast_mut::<Frame>() {
-                        label.set_dirty_flag(true);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn checkcontcolor(&mut self, new_color: Color) {
-        if let Some(id) = get_id(self.id.clone()) {
-            let wid = format!("{}.checkcontframe", id.clone());
-
-            if let Some(widget) = self.frame.find_mut(hsid!(&wid)) {
-                if let Some(frame) = widget.as_any_mut().downcast_mut::<Frame>() {
-                    frame.color(new_color);
-                }
-            }
-        }
+    pub fn hovercolor(&mut self, new_color: Color) {
+        self.hover_color = Some(new_color);
+        self.set_dirty_flag(true);
     }
 
     //sizes
@@ -160,15 +111,27 @@ impl Switch {
         self.set_relayout_flag(true);
     }
 
-    pub fn font_size(&mut self, size: i32) {
-        if let Some(id) = get_id(self.id.clone()) {
-            let wid = format!("{}.label", id.clone());
+    ///Sets inner widget padding
+    pub fn padding(&mut self, pad: i32) {
+        self.frame.padding = pad;
+        self.set_relayout_flag(true);
+    }
 
-            if let Some(widget) = self.frame.find_mut(hsid!(&wid)) {
-                if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    label.font_size(size);
-                }
+    ///Sets inner widget padding
+    pub fn set_bottom_to_top(&mut self, val: bool) {
+        self.frame.is_bottom_to_top = val;
+        self.set_relayout_flag(true);
+    }
+
+    //colors and styles
+    ///Changes framebutton style at runtime is not styled like a button, styles can be found in [`FrameStyle`]
+    pub fn style(&mut self, style: FrameStyle) {
+        if !self.is_styled {
+            self.frame.style = style;
+            if self.frame.style != FrameStyle::FLAT && style != FrameStyle::FLAT {
+                self.update_layout(false);
             }
+            self.set_dirty_flag(true);
         }
     }
 
@@ -201,9 +164,37 @@ impl Switch {
             self.frame.base.sizestrat.min_height = height;
         }
     }
+
+    ///Adds presetted widget inside self
+    pub fn add_widget<W: Widget + 'static>(&mut self, widget: W) {
+        self.frame.children.push(Box::new(widget));
+        self.update_layout(false);
+        self.set_dirty_flag(true);
+    }
+
+    ///Finds and removes widget by its id, NOT RECURSIVE
+    pub fn remove_widget(&mut self, target_id: u64) -> bool {
+        self.set_dirty_flag(true);
+        let old_len = self.frame.children.len();
+
+        self.frame.children.retain(|child| child.get_id() != target_id);
+
+        if self.frame.children.len() < old_len {
+            self.update_layout(false);
+            return true;
+        }
+
+        false
+    }
+
+    ///Manual action push, if you want to manualy send redraw/relayout requests, or custom action with your own signal
+    ///All actions can be found in [`Action`]'s list
+    pub fn push_action(&mut self, action: Action) {
+        self.frame.vecpushedactions.push(action);
+    }
 }
 
-impl Widget for Switch {
+impl Widget for FrameButton {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -213,12 +204,28 @@ impl Widget for Switch {
     fn get_id(&self) -> u64 {
         self.id
     }
-    fn draw(&self, drawcommans: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
-        self.frame.draw(drawcommans, pos_off, clip, None);
+    fn draw(
+        &self,
+        drawcommans: &mut Vec<DrawCommand>,
+        pos_off: Pos,
+        clip: Rect,
+        _preferred_color: Option<Color>,
+    ) {
+        //Getting display color depending on is button hovered
+        let display_color = if self.is_hovered {
+            self.hover_color
+                .unwrap_or_else(|| self.frame.base.bgcolor.lighter(25))
+        } else {
+            self.frame.base.bgcolor
+        };
+
+        //println!("{:?}", display_color);
+
+        self.frame.draw(drawcommans, pos_off, clip, Some(display_color));
     }
 
     fn update_layout(&mut self, forced: bool) {
-        self.frame.update_layout(forced);
+        self.frame.update_layout(forced);//Layout update
     }
 
     fn set_size(&mut self, size: Size) {
@@ -257,25 +264,41 @@ impl Widget for Switch {
         match event {
             //On mouse click we are checking is this button inside, then if it is changins some values and making the button pressed and pushing action
             Event::MouseClick { pos, key } => {
-                if let Some(id) = get_id(self.id.clone()) {
-                    let checkframeid = format!("{}.checkframe", id.clone());
-                    
-                    if self.is_point_inside(*pos, pos_off) && *key == MKey::Left  {
-                        self.is_on = !self.is_on;
-
-                        if let Some(widget) = self.frame.find_mut(hsid!(&checkframeid)) {
-                            if let Some(frame) = widget.as_any_mut().downcast_mut::<Frame>() {
-                                if self.is_on {
-                                    frame.color(self.check_color);
-                                } else {
-                                    frame.color(Color::TRANSPARENT);
-                                }
-                                self.set_dirty_flag(true);
-                            }
-                        }
-
-                        actions.push(Action::SwitchChanged(self.id, self.is_on));
+                if self.is_point_inside(*pos, pos_off) && !self.is_pressed && *key == MKey::Left {
+                    self.is_pressed = true;
+                    actions.push(Action::ButtonClicked(self.id));
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::SUNKEN);
                     }
+                }
+            }
+            //Same thing here but we are pushing mouse release action
+            Event::MouseRelease { pos, key } => {
+                if self.is_point_inside(*pos, pos_off) && self.is_pressed && *key == MKey::Left  {
+                    self.is_pressed = false;
+                    actions.push(Action::ButtonReleased(self.id));
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::RAISED);
+                    }
+                }
+            }
+            //Mouse hovering part
+            Event::MouseMove { pos } => {
+                let now_hovered = self.is_point_inside(*pos, pos_off);
+                //If mouse is hovered then we are changing is_hovered, requesting redraw and pushing hovered action
+                if now_hovered && !self.is_hovered {
+                    self.is_hovered = true;
+                    actions.push(Action::Hovered(self.id));
+                    self.set_dirty_flag(true);
+                //If mouse is unhovered then are setting style to raised, changing a lot of values and and pushing unhovered action
+                } else if !now_hovered && self.is_hovered {
+                    self.is_hovered = false;
+                    if self.is_styled {
+                        self.frame.style(FrameStyle::RAISED);
+                    }
+                    self.is_pressed = false;
+                    actions.push(Action::Unhovered(self.id));
+                    self.set_dirty_flag(true);
                 }
             }
             _ => {}

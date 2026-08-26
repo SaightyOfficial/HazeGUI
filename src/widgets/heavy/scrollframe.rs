@@ -1,24 +1,25 @@
-use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
+use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat, intersect_rects};
 use crate::core::event::Action::ScrollChanged;
-use crate::core::event::{Action, Event};
+use crate::core::event::{Action, DrawCommand, Event};
 use crate::core::idpool::{regid, get_id};
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
 use crate::hsid;
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::scrollbar::ScrollBar;
-use tiny_skia::{PixmapMut, Rect};
 
 ///Buton struct, stores everything button needs
 pub struct ScrollFrame {
     pub id: u64,
     pub frame: Frame,
-
+    is_bottom_to_top: bool,
+    scrollaxis: Axis,
 }
 
 impl ScrollFrame {
-    pub fn new(id: String, scrolling: Axis) -> Self {
+    pub fn new(id: String, scrolling: Axis, is_bottom_to_top: bool,) -> Self {
         let mut framesetter = Frame::new(format!("{}.frame", id.clone()));
         framesetter.style(FrameStyle::SUNKEN);
 
@@ -29,12 +30,12 @@ impl ScrollFrame {
         let mut containerframesetter = Frame::new(format!("{}.container", id.clone()));
         containerframesetter.pos(Pos::new(0, 0)); //For manual layout method that is needed
 
-        let mut vthumbsetter = ScrollBar::new(format!("{}.v_scbar", id.clone()));
+        let mut vthumbsetter = ScrollBar::new(format!("{}.v_scbar", id.clone()), is_bottom_to_top);
         vthumbsetter.side(Side::RIGHT);
         vthumbsetter.fill(Axis::Y);
         vthumbsetter.axis(Axis::Y);
 
-        let mut hthumbsetter = ScrollBar::new(format!("{}.h_scbar", id.clone()));
+        let mut hthumbsetter = ScrollBar::new(format!("{}.h_scbar", id.clone()),is_bottom_to_top);
         hthumbsetter.fill(Axis::X);
         hthumbsetter.axis(Axis::X);
         
@@ -49,6 +50,8 @@ impl ScrollFrame {
         Self {
             id: regid(id.clone()),
             frame: framesetter,
+            is_bottom_to_top: is_bottom_to_top,
+            scrollaxis: scrolling,
         }
     }
 
@@ -127,6 +130,20 @@ impl ScrollFrame {
         }
     }
 
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.frame.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.frame.base.layoutstrat.is_spacer = spacer;
+        self.set_relayout_flag(true);
+    }
+
     ///Sets widget size, widget will not dynamicaly change size
     ///NOTE: Be careful while using it because if widget is too big or too small it or its child widgets will not be fully visible
     pub fn size(&mut self, size: Size) {
@@ -150,6 +167,11 @@ impl ScrollFrame {
                 }
             }
         }
+    }
+
+    pub fn style(&mut self, new_style: FrameStyle) {
+        self.frame.style = new_style;
+        self.set_relayout_flag(true);
     }
 
     ///Changes max widget size at runtime
@@ -203,12 +225,53 @@ impl ScrollFrame {
 
             if let Some(widget) = self.frame.find_mut(hsid!(&containerid)) {
                 if let Some(frame) = widget.as_any_mut().downcast_mut::<Frame>() {
+                    let a = frame.remove_widget(target_id);
                     frame.set_relayout_flag(true);
-                    return frame.remove_widget(target_id);
+                    return a;
                 }
             }   
         }
         false
+    }
+
+    fn recalculate_content_pos(&mut self, v_scval: Option<f32>, h_scval: Option<f32>) {
+        if let Some(id) = get_id(self.id) {
+            let containerid = format!("{}.container", id);
+            let subcontainerid = format!("{}.subcontainer", id);
+
+            let mut bordersize = 0;
+            if let Some(widget) = self.frame.find(hsid!(&subcontainerid)) {
+                if let Some(subcontentframe) = widget.as_any().downcast_ref::<Frame>() {
+                    bordersize = match subcontentframe.style {
+                        FrameStyle::FLAT => 0,
+                        _ => 2,
+                    };
+                }
+            }
+
+            let selfsize = self.frame.get_size();
+
+            if let Some(widget) = self.frame.find_mut(hsid!(&containerid)) {
+                if let Some(contentframe) = widget.as_any_mut().downcast_mut::<Frame>() {
+                    let contentsize = contentframe.get_size();
+                    let mut newpos = contentframe.base.pos;
+
+                    if let Some(scval) = v_scval {
+                        if !self.is_bottom_to_top {
+                            newpos.y = ((contentsize.height as f32 * scval) * -1.0).round() as i32 + bordersize;
+                        } else {
+                            newpos.y = (selfsize.height - contentsize.height) - ((contentsize.height as f32 * scval) * -1.0).round() as i32 + bordersize;
+                        }
+                    }
+
+                    if let Some(scval) = h_scval {
+                        newpos.x = ((contentsize.width as f32 * scval) * -1.0).round() as i32 + bordersize;
+                    }
+
+                    contentframe.set_pos(newpos);
+                }
+            }
+        }
     }
 }
 
@@ -236,12 +299,59 @@ impl Widget for ScrollFrame {
         }
         self.frame.find(target_id)
     }
-    fn draw(&self, pixmap: &mut PixmapMut, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
-        self.frame.draw(pixmap, pos_off, clip, None);
+    fn draw(&self, drawcommans: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+        self.frame.draw(drawcommans, pos_off, clip, None);
     }
 
     fn update_layout(&mut self, forced: bool) {
         self.frame.update_layout(forced);
+
+        if let Some(id) = get_id(self.id.clone()) {
+            let containerid = format!("{}.container", id);
+            let subcontainerid = format!("{}.subcontainer", id);
+
+            let mut sub_size = Size::new(0, 0);
+            if let Some(widget) = self.frame.find(hsid!(&subcontainerid)) {
+                sub_size = widget.get_size();
+            }
+
+            if let Some(widget) = self.frame.find_mut(hsid!(&containerid)) {
+                if let Some(container) = widget.as_any_mut().downcast_mut::<Frame>() {
+
+                    if self.scrollaxis == Axis::Y {
+                        container.base.size.width = sub_size.width;
+                        container.base.sizestrat.min_width = Some(sub_size.width);
+                    }
+
+                    if self.scrollaxis == Axis::X {
+                        container.base.size.height = sub_size.height;
+                        container.base.sizestrat.min_height = Some(sub_size.height);
+                    }
+
+                    container.update_layout(true);
+                }
+            }
+
+            let hscbarid = format!("{}.h_scbar", id.clone());
+            let vscbarid = format!("{}.v_scbar", id.clone());
+
+            let mut v_val = None;
+            let mut h_val = None;
+
+            if let Some(widget) = self.frame.find(hsid!(&vscbarid)) {
+                if let Some(vscbar) = widget.as_any().downcast_ref::<ScrollBar>() {
+                    v_val = Some(vscbar.scroll_value);
+                }
+            }
+
+            if let Some(widget) = self.frame.find(hsid!(&hscbarid)) {
+                if let Some(hscbar) = widget.as_any().downcast_ref::<ScrollBar>() {
+                    h_val = Some(hscbar.scroll_value);
+                }
+            }
+
+            self.recalculate_content_pos(v_val, h_val);
+        }
     }
 
     fn set_size(&mut self, size: Size) {
@@ -284,50 +394,18 @@ impl Widget for ScrollFrame {
             if let Some(id) = get_id(self.id.clone()) {
                 let hscbarid = format!("{}.h_scbar", id.clone());
                 let vscbarid = format!("{}.v_scbar", id.clone());
-                let containerid = format!("{}.container", id.clone());
-                let subcontainerid = format!("{}.subcontainer", id.clone());
 
                 if let ScrollChanged(scid, scval) = action {
-                    let mut bordersize = 0;
-                    if let Some(widget) = self.frame.find(hsid!(&subcontainerid)) {
-                        if let Some(subcontentframe) = widget.as_any().downcast_ref::<Frame>() {
-                            match subcontentframe.style {
-                                FrameStyle::FLAT => {bordersize = 0},
-                                _ => {bordersize = 2}
-                            };
-                        }
-                    }
-                    //Vertical scroll
                     if scid == hsid!(&vscbarid) {
-                        if let Some(widget) = self.frame.find_mut(hsid!(&containerid)) {
-                            if let Some(contentframe) = widget.as_any_mut().downcast_mut::<Frame>() {
-                                let contentsize = contentframe.get_size();
-                                let mut newpos = Pos::new(contentframe.base.pos.x, bordersize);
-
-                                newpos.y = ((contentsize.height as f32 * scval) * -1.0).round() as i32 + bordersize;
-
-                                contentframe.set_pos(newpos);
-                                self.set_dirty_flag(true);
-                            }
-                        }
-                    }
-                    //Horizontal scroll
-                    if scid == hsid!(&hscbarid) {
-                        if let Some(widget) = self.frame.find_mut(hsid!(&containerid)) {
-                            if let Some(contentframe) = widget.as_any_mut().downcast_mut::<Frame>() {
-                                let contentsize = contentframe.get_size();
-                                let mut newpos = Pos::new(bordersize, contentframe.base.pos.y);
-
-                                newpos.x = ((contentsize.width as f32 * scval) * -1.0).round() as i32 + bordersize;
-
-                                contentframe.set_pos(newpos);
-                                self.set_dirty_flag(true);
-                            }
-                        }
+                        self.recalculate_content_pos(Some(scval), None);
+                        self.set_dirty_flag(true);
+                    } else if scid == hsid!(&hscbarid) {
+                        self.recalculate_content_pos(None, Some(scval));
+                        self.set_dirty_flag(true);
                     }
                 }
             }
-            //println!("{:?}", action);
+            
             actions.push(action);
         }
     }
@@ -359,7 +437,7 @@ impl Widget for ScrollFrame {
             if let Some(my_rect) = self.get_self_rect(pos_off) {
                 for action in child_requests {
                     if let Action::RedrawRequest(Some(child_rect)) = action {
-                        if let Some(clipped_rect) = my_rect.intersect(&child_rect) {
+                        if let Some(clipped_rect) = intersect_rects(my_rect, child_rect) {
                             requests.push(Action::RedrawRequest(Some(clipped_rect)));
                         }
                     } else {

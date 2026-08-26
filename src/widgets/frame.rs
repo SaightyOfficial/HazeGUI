@@ -1,10 +1,11 @@
 use crate::core::common::{Axis, SizeEnum, SizeStrat};
-use crate::core::event::{Action, Event};
+use crate::core::event::{Action, DrawCommand, Event};
 use crate::core::idpool::regid;
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::{UsedCord, Widget, WidgetBase};
 use crate::core::{color::Color, pos::Pos};
-use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
+//use tiny_skia::{Color as SkiaColor, Paint, PixmapMut};
 
 use crate::core::common::{LayoutEnum, LayoutStrat, Side, intersect_rects};
 
@@ -109,6 +110,20 @@ impl Frame {
         self.set_relayout_flag(true);
     }
 
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.base.layoutstrat.is_spacer = spacer;
+        self.set_relayout_flag(true);
+    }
+
     ///Sets widget size, widget will not dynamicaly change size
     ///NOTE: Be careful while using it because if widget is too big or too small it or its child widgets will not be fully visible
     pub fn size(&mut self, size: Size){
@@ -157,10 +172,28 @@ impl Frame {
     //That function was hell to write... Idk how it works but it does YAAAAAAAAAAAY
     ///Refreshes children layout recursively
     pub fn refresh_layout(&mut self) {
+        let push_y = |usedleft: &mut UsedCord, usedmiddle: &mut UsedCord, usedright: &mut UsedCord, side: Side, is_spacer: bool, h: i32| {
+            if is_spacer {
+                let max_y = usedleft.used_y.max(usedmiddle.used_y).max(usedright.used_y);
+                let next_y = max_y + h;
+
+                usedleft.used_y = next_y;
+                usedmiddle.used_y = next_y;
+                usedright.used_y = next_y;
+            } else {
+                match side {
+                    Side::LEFT => usedleft.used_y += h,
+                    Side::MIDDLE => usedmiddle.used_y += h,
+                    Side::RIGHT => usedright.used_y += h,
+                }
+            }
+        };
+
         // Clearing used coordinates
         self.usedleft = UsedCord::default();
         self.usedmiddle = UsedCord::default();
         self.usedright = UsedCord::default();
+        let mut max_greedy_width = 0;
 
         // Setting maximum side width's
         let mut max_left_width = 0;
@@ -188,37 +221,41 @@ impl Frame {
             let is_fill_y = sizestrat.method == SizeEnum::FILL
                 && (sizestrat.fill == Axis::Y || sizestrat.fill == Axis::BOTH);
 
+            if layoutstrat.is_greedy {
+                max_greedy_width = max_greedy_width.max(child_size.width);
+            }
+
             if layoutstrat.method == LayoutEnum::AUTO {
                 // Checking for side and adding used cords
                 match layoutstrat.side {
                     Side::LEFT => {
-                        if child_size.width > max_left_width {
+                        if child_size.width > max_left_width && !layoutstrat.is_greedy {
                             max_left_width = child_size.width;
                         }
                         if is_fill_y {
                             self.usedleft.fill_widgets += 1;
                         } else {
-                            self.usedleft.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::LEFT, layoutstrat.is_spacer, child_size.height);
                         }
                     }
                     Side::MIDDLE => {
-                        if child_size.width > max_middle_width {
+                        if child_size.width > max_middle_width && !layoutstrat.is_greedy  {
                             max_middle_width = child_size.width;
                         }
                         if is_fill_y {
                             self.usedmiddle.fill_widgets += 1;
                         } else {
-                            self.usedmiddle.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::MIDDLE, layoutstrat.is_spacer, child_size.height);
                         }
                     }
                     Side::RIGHT => {
-                        if child_size.width > max_right_width {
+                        if child_size.width > max_right_width && !layoutstrat.is_greedy  {
                             max_right_width = child_size.width;
                         }
                         if is_fill_y {
                             self.usedright.fill_widgets += 1;
                         } else {
-                            self.usedright.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::RIGHT, layoutstrat.is_spacer, child_size.height);
                         }
                     }
                 }
@@ -226,7 +263,8 @@ impl Frame {
         }
 
         // Width that we need to properly show everything
-        let required_width = max_left_width + max_middle_width + max_right_width + border_padding;
+        let content_width = (max_left_width + max_middle_width + max_right_width).max(max_greedy_width);
+        let required_width = content_width + border_padding;
         // Max corridor height
         let max_corridor_height = self
             .usedleft
@@ -251,12 +289,12 @@ impl Frame {
         let parent_height = (self.base.size.height - border_padding).max(0);
 
         // Getting left fill height
-        let fill_left_h = if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y
-        {
-            (parent_height - self.usedleft.used_y) / self.usedleft.fill_widgets
-        } else {
-            0
-        };
+        let fill_left_h =
+            if self.usedleft.fill_widgets > 0 && parent_height > self.usedleft.used_y {
+                (parent_height - self.usedleft.used_y) / self.usedleft.fill_widgets
+            } else {
+                0
+            };
         // Getting middle fill height
         let fill_middle_h =
             if self.usedmiddle.fill_widgets > 0 && parent_height > self.usedmiddle.used_y {
@@ -309,9 +347,15 @@ impl Frame {
                 // Filling by X axis
                 if is_fill_x {
                     match layoutstrat.side {
-                        Side::LEFT => child_size.width = max_left_width,
-                        Side::MIDDLE => child_size.width = middle_allowed_width,
-                        Side::RIGHT => child_size.width = max_right_width,
+                        Side::LEFT => {
+                            child_size.width = if layoutstrat.is_greedy { parent_width } else { max_left_width };
+                        }
+                        Side::MIDDLE => {
+                            child_size.width = if layoutstrat.is_greedy { parent_width - max_left_width } else { middle_allowed_width };
+                        }
+                        Side::RIGHT => {
+                            child_size.width = if layoutstrat.is_greedy { parent_width - max_left_width - middle_allowed_width } else { max_right_width };
+                        }
                     }
                 }
 
@@ -344,51 +388,96 @@ impl Frame {
 
                 // Final position setting by sides
                 if !self.is_bottom_to_top {
+                    let current_y = if layoutstrat.is_spacer {
+                        self.usedleft.used_y
+                            .max(self.usedmiddle.used_y)
+                            .max(self.usedright.used_y)
+                    } else {
+                        match layoutstrat.side {
+                            Side::LEFT => self.usedleft.used_y,
+                            Side::MIDDLE => self.usedmiddle.used_y,
+                            Side::RIGHT => self.usedright.used_y,
+                        }
+                    };
+
                     match layoutstrat.side {
                         Side::LEFT => {
                             let x_pos = border_thickness;
-                            child.set_pos(Pos::new(x_pos, self.usedleft.used_y));
-                            self.usedleft.used_y += child_size.height;
+
+                            child.set_pos(Pos::new(x_pos, current_y));
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::LEFT, layoutstrat.is_spacer, child_size.height);
                         }
                         Side::MIDDLE => {
-                            let center_zone_start = border_thickness + max_left_width;
-                            let x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
+                            let x_pos;
+                            if !layoutstrat.is_greedy {
+                                let center_zone_start = border_thickness + max_left_width;
+                                x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
+                            } else {
+                                x_pos = border_thickness + (parent_width - child_size.width) / 2;
+                            }
 
-                            child.set_pos(Pos::new(x_pos, self.usedmiddle.used_y));
-                            self.usedmiddle.used_y += child_size.height;
+                            child.set_pos(Pos::new(x_pos, current_y));
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::MIDDLE, layoutstrat.is_spacer, child_size.height);
                         }
                         Side::RIGHT => {
-                            let min_right_x = border_thickness + max_left_width + middle_allowed_width;
-                            let x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
+                            let x_pos;
+                            if !layoutstrat.is_greedy {
+                                let min_right_x = border_thickness + max_left_width + middle_allowed_width;
+                                x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
+                            } else {
+                                x_pos = parent_width - child_size.width;
+                            }
 
-                            child.set_pos(Pos::new(x_pos, self.usedright.used_y));
-                            self.usedright.used_y += child_size.height;
+                            child.set_pos(Pos::new(x_pos, current_y));
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::RIGHT, layoutstrat.is_spacer, child_size.height);
                         }
                     }
                 } else {
+                    let current_y = if layoutstrat.is_spacer {
+                        self.usedleft.used_y
+                            .max(self.usedmiddle.used_y)
+                            .max(self.usedright.used_y)
+                    } else {
+                        match layoutstrat.side {
+                            Side::LEFT => self.usedleft.used_y,
+                            Side::MIDDLE => self.usedmiddle.used_y,
+                            Side::RIGHT => self.usedright.used_y,
+                        }
+                    };
+
                     match layoutstrat.side {
                         Side::LEFT => {
                             let x_pos = border_thickness;
-                            let y_pos = self.base.size.height - self.usedleft.used_y - child_size.height;
+                            let y_pos = self.base.size.height - current_y - child_size.height;
 
                             child.set_pos(Pos::new(x_pos, y_pos));
-                            self.usedleft.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::LEFT, layoutstrat.is_spacer, child_size.height);
                         }
                         Side::MIDDLE => {
-                            let center_zone_start = border_thickness + max_left_width;
-                            let x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
-                            let y_pos = self.base.size.height - self.usedmiddle.used_y - child_size.height;
+                            let x_pos;
+                            if !layoutstrat.is_greedy {
+                                let center_zone_start = border_thickness + max_left_width;
+                                x_pos = (center_zone_start + (middle_allowed_width - child_size.width) / 2).max(center_zone_start);
+                            } else {
+                                x_pos = border_thickness + (parent_width - child_size.width) / 2;
+                            }
+                            let y_pos = self.base.size.height - current_y - child_size.height;
 
                             child.set_pos(Pos::new(x_pos, y_pos));
-                            self.usedmiddle.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::MIDDLE, layoutstrat.is_spacer, child_size.height);
                         }
                         Side::RIGHT => {
-                            let min_right_x = border_thickness + max_left_width + middle_allowed_width;
-                            let x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
-                            let y_pos = self.base.size.height - self.usedright.used_y - child_size.height;
+                            let x_pos;
+                            if !layoutstrat.is_greedy {
+                                let min_right_x = border_thickness + max_left_width + middle_allowed_width;
+                                x_pos = (border_thickness + parent_width - child_size.width).max(min_right_x);
+                            } else {
+                                x_pos = parent_width - child_size.width;
+                            }
+                            let y_pos = self.base.size.height - current_y - child_size.height;
 
                             child.set_pos(Pos::new(x_pos, y_pos));
-                            self.usedright.used_y += child_size.height;
+                            push_y(&mut self.usedleft, &mut self.usedmiddle, &mut self.usedright, Side::RIGHT, layoutstrat.is_spacer, child_size.height);
                         }
                     }
                 }
@@ -474,153 +563,107 @@ impl Widget for Frame {
     //Another hellish function...
     fn draw(
         &self,
-        pixmap: &mut PixmapMut,
+        drawcommands: &mut Vec<DrawCommand>,
         pos_off: Pos,
         clip: Rect,
         preferred_color: Option<Color>,
     ) {
-        //Getting absolute positions and size
-        let abs_x = (pos_off.x + self.base.pos.x) as f32;
-        let abs_y = (pos_off.y + self.base.pos.y) as f32;
-        let w = self.base.size.width as f32;
-        let h = self.base.size.height as f32;
+        let abs_x = pos_off.x + self.base.pos.x;
+        let abs_y = pos_off.y + self.base.pos.y;
+        let w = self.base.size.width;
+        let h = self.base.size.height;
 
         let my_rect = match Rect::from_xywh(abs_x, abs_y, w, h) {
             Some(r) => r,
             None => return,
         };
 
-        //Getting full frame cliprect
         let inner_clip = match intersect_rects(clip, my_rect) {
             Some(r) => r,
             None => return,
         };
 
-        //Creating paints
-        let mut paint = Paint::default();
-        let mut paintdark = Paint::default();
-        let mut paintlight = Paint::default();
-
-        //Setting colors, BGRA is needed and is not a bug
-        if let Some(preferred_color_done) = preferred_color {
-            paint.set_color(SkiaColor::from_rgba8(preferred_color_done.b, preferred_color_done.g, preferred_color_done.r, preferred_color_done.a));
-
-            let darkercolor = preferred_color_done.darker(self.lightchangeamount);
-            paintdark.set_color(SkiaColor::from_rgba8(darkercolor.b, darkercolor.g, darkercolor.r, darkercolor.a, ));
-
-            let lightercolor = preferred_color_done.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
+        let border_thickness = if self.style == FrameStyle::FLAT {
+            self.padding
         } else {
-            paint.set_color(SkiaColor::from_rgba8(self.base.bgcolor.b, self.base.bgcolor.g, self.base.bgcolor.r, self.base.bgcolor.a));
+            2 + self.padding
+        };
 
-            let darkercolor = self.base.bgcolor.darker(self.lightchangeamount);
-            paintdark.set_color(SkiaColor::from_rgba8(
-                darkercolor.b,
-                darkercolor.g,
-                darkercolor.r,
-                darkercolor.a));
+        let child_clip = Rect::from_xywh(
+            abs_x + border_thickness,
+            abs_y + border_thickness,
+            (w - border_thickness * 2).max(0),
+            (h - border_thickness * 2).max(0),
+        )
+        .and_then(|inner_r| intersect_rects(inner_clip, inner_r))
+        .unwrap_or(inner_clip); // Если разметка слишком мала, не падаем
 
-            let lightercolor = self.base.bgcolor.lighter(self.lightchangeamount);
-            paintlight.set_color(SkiaColor::from_rgba8(lightercolor.b, lightercolor.g, lightercolor.r, lightercolor.a));
-        }
+        let base_color = preferred_color.unwrap_or(self.base.bgcolor);
+        let paintlight = base_color.lighter(self.lightchangeamount);
+        let paintdark = base_color.darker(self.lightchangeamount);
 
-        pixmap.fill_rect(inner_clip, &paint, tiny_skia::Transform::identity(), None);
+        drawcommands.push(DrawCommand::Rect(my_rect, base_color, inner_clip));
 
-        let border_thickness = if self.style == FrameStyle::FLAT { 0.0 + self.padding as f32 } else { 2.0  + self.padding as f32 };
-
-        if border_thickness != 0.0 {
-            //Safe line rendering that is not going outide of clip
-            let draw_line = |pixmap: &mut PixmapMut,
-                             x: f32,
-                             y: f32,
-                             width: f32,
-                             height: f32,
-                             paint_style: &Paint| {
-                if let Some(line_rect) = Rect::from_xywh(x, y, width, height)
-                    && let Some(visible_line) = intersect_rects(line_rect, clip)
-                {
-                    pixmap.fill_rect(
-                        visible_line,
-                        paint_style,
-                        tiny_skia::Transform::identity(),
-                        None,
-                    );
+        if border_thickness > 0 && self.style != FrameStyle::FLAT {
+            let mut draw_line = |x: i32, y: i32, width: i32, height: i32, paint_style: Color| {
+                if let Some(line_rect) = Rect::from_xywh(x, y, width, height) {
+                    drawcommands.push(DrawCommand::Rect(line_rect, paint_style, inner_clip));
                 }
             };
 
-            //The great framestyles render, idk what that is but it is working so dont touch that
             match self.style {
                 FrameStyle::FLAT => {}
                 FrameStyle::RAISED => {
-                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(abs_x, abs_y, w, 1, paintlight);
+                    draw_line(abs_x, abs_y, 1, h, paintlight);
+                    draw_line(abs_x + 1, abs_y + 1, w - 2, 1, paintlight);
+                    draw_line(abs_x + 1, abs_y + 1, 1, h - 2, paintlight);
 
-                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                    draw_line(abs_x, abs_y + h - 1, w, 1, paintdark);
+                    draw_line(abs_x + w - 1, abs_y, 1, h, paintdark);
+                    draw_line(abs_x + 1, abs_y + h - 2, w - 2, 1, paintdark);
+                    draw_line(abs_x + w - 2, abs_y + 1, 1, h - 2, paintdark);
                 }
                 FrameStyle::SUNKEN => {
-                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
+                    draw_line(abs_x, abs_y, w, 1, paintdark);
+                    draw_line(abs_x, abs_y, 1, h, paintdark);
+                    draw_line(abs_x + 1, abs_y + 1, w - 2, 1, paintdark);
+                    draw_line(abs_x + 1, abs_y + 1, 1, h - 2, paintdark);
 
-                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(abs_x, abs_y + h - 1, w, 1, paintlight);
+                    draw_line(abs_x + w - 1, abs_y, 1, h, paintlight);
+                    draw_line(abs_x + 1, abs_y + h - 2, w - 2, 1, paintlight);
+                    draw_line(abs_x + w - 2, abs_y + 1, 1, h - 2, paintlight);
                 }
                 FrameStyle::GROOVE => {
-                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintdark);
-                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintlight);
+                    draw_line(abs_x, abs_y, w, 1, paintdark);
+                    draw_line(abs_x, abs_y, 1, h, paintdark);
+                    draw_line(abs_x, abs_y + h - 1, w, 1, paintlight);
+                    draw_line(abs_x + w - 1, abs_y, 1, h, paintlight);
 
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + h - 2.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark,);
+                    draw_line(abs_x + 1, abs_y + 1, w - 2, 1, paintlight);
+                    draw_line(abs_x + 1, abs_y + 1, 1, h - 2, paintlight);
+                    draw_line(abs_x + 1, abs_y + h - 2, w - 2, 1, paintdark);
+                    draw_line(abs_x + w - 2, abs_y + 1, 1, h - 2, paintdark);
                 }
                 FrameStyle::RIDGE => {
-                    draw_line(pixmap, abs_x, abs_y, w, 1.0, &paintlight);
-                    draw_line(pixmap, abs_x, abs_y, 1.0, h, &paintlight);
-                    draw_line(pixmap, abs_x, abs_y + h - 1.0, w, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + w - 1.0, abs_y, 1.0, h, &paintdark);
+                    draw_line(abs_x, abs_y, w, 1, paintlight);
+                    draw_line(abs_x, abs_y, 1, h, paintlight);
+                    draw_line(abs_x, abs_y + h - 1, w, 1, paintdark);
+                    draw_line(abs_x + w - 1, abs_y, 1, h, paintdark);
 
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, w - 2.0, 1.0, &paintdark);
-                    draw_line(pixmap, abs_x + 1.0, abs_y + 1.0, 1.0, h - 2.0, &paintdark);
-                    draw_line(pixmap,abs_x + 1.0,abs_y + h - 2.0,w - 2.0,1.0, &paintlight);
-                    draw_line(pixmap, abs_x + w - 2.0, abs_y + 1.0, 1.0, h - 2.0, &paintlight);
+                    draw_line(abs_x + 1, abs_y + 1, w - 2, 1, paintdark);
+                    draw_line(abs_x + 1, abs_y + 1, 1, h - 2, paintdark);
+                    draw_line(abs_x + 1, abs_y + h - 2, w - 2, 1, paintlight);
+                    draw_line(abs_x + w - 2, abs_y + 1, 1, h - 2, paintlight);
                 }
             }
         }
-        //Framestyles hell end
 
-        //Getting inner rect with padding and etc
-        let inner_rect = match Rect::from_xywh(
-            abs_x + border_thickness,
-            abs_y + border_thickness,
-            w - (border_thickness * 2.0),
-            h - (border_thickness * 2.0),
-        ) {
-            Some(r) => r,
-            None => return,
-        };
-
-        //Child cliprect
-        let child_clip = match intersect_rects(inner_clip, inner_rect) {
-            Some(r) => r,
-            None => return,
-        };
-
-        //Recursive draw of other widgets
         for child in &self.children {
             child.draw(
-                pixmap,
-                Pos::new(abs_x as i32, abs_y as i32),
+                drawcommands,
+                Pos::new(abs_x, abs_y),
                 child_clip,
                 None,
             );

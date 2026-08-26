@@ -1,13 +1,14 @@
-use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat, intersect_rects};
-use crate::core::event::{Action, Event, KKey, MKey};
+use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
+use crate::core::event::{Action, DrawCommand, Event, KKey, MKey};
 use crate::core::idpool::{regid, get_id};
 use crate::hsid;
 use crate::core::size::Size;
+use crate::core::shapes::Rect;
 use crate::core::widget::Widget;
 use crate::core::{color::Color, pos::Pos};
 use crate::widgets::frame::{Frame, FrameStyle};
 use crate::widgets::label::Label;
-use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
+//use tiny_skia::{Color as SkiaColor, Paint, PixmapMut, Rect};
 
 ///Buton struct, stores everything textbox needs
 pub struct Textbox {
@@ -44,7 +45,7 @@ impl Textbox {
 
             if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
                 if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                    label.text(new_text);
+                    label.set_text(new_text);
                 }
             }
         }
@@ -55,6 +56,20 @@ impl Textbox {
     pub fn pos(&mut self, posnew: Pos) {
         self.frame.base.pos = posnew;
         self.frame.base.layoutstrat.method = LayoutEnum::MANUAL;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets greedness of widget
+    ///Greedy widgets go onto other sides, widget from right line can go onto central and left lines if its size is big enough
+    pub fn greedy(&mut self, greed: bool) {
+        self.frame.base.layoutstrat.is_greedy = greed;
+        self.set_relayout_flag(true);
+    }
+
+    ///Sets spaceness of widget
+    ///Spacer widgets take space in other lines
+    pub fn spacer(&mut self, spacer: bool) {
+        self.frame.base.layoutstrat.is_spacer = spacer;
         self.set_relayout_flag(true);
     }
 
@@ -114,7 +129,7 @@ impl Textbox {
         self.set_relayout_flag(true);
     }
 
-    pub fn font_size(&mut self, size: f32) {
+    pub fn font_size(&mut self, size: i32) {
         if let Some(id) = get_id(self.id.clone()) {
             let labelid = format!("{}.label", id.clone());
 
@@ -169,12 +184,12 @@ impl Widget for Textbox {
     }
     fn draw(
         &self,
-        pixmap: &mut PixmapMut,
+        drawcommands: &mut Vec<DrawCommand>,
         pos_off: Pos,
         clip: Rect,
         _preferred_color: Option<Color>,
     ) {
-        self.frame.draw(pixmap, pos_off, clip, None);
+        self.frame.draw(drawcommands, pos_off, clip, None);
 
         if !self.is_focused {
             return;
@@ -187,27 +202,12 @@ impl Widget for Textbox {
                 if let Some(label) = widget.as_any().downcast_ref::<Label>() {
                     let (rel_pos, cursor_h) = label.get_cursor_pos(self.cursor_pos);
 
-                    let abs_x = (pos_off.x + self.frame.base.pos.x + label.base.pos.x + rel_pos.x) as f32;
-                    let abs_y = (pos_off.y + self.frame.base.pos.y + label.base.pos.y + rel_pos.y) as f32;
-                    let cursor_w = 1.0;
+                    let abs_x = pos_off.x + self.frame.base.pos.x + label.base.pos.x + rel_pos.x;
+                    let abs_y = pos_off.y + self.frame.base.pos.y + label.base.pos.y + rel_pos.y;
+                    let cursor_w = 1;
 
-                    if let Some(cursor_rect) = Rect::from_xywh(abs_x, abs_y, cursor_w, cursor_h as f32) {
-                        if let Some(visible_cursor) = intersect_rects(cursor_rect, clip) {
-                            let mut paint = Paint::default();
-                            paint.set_color(SkiaColor::from_rgba8(
-                                label.textcolor.b,
-                                label.textcolor.g,
-                                label.textcolor.r,
-                                255,
-                            ));
-
-                            pixmap.fill_rect(
-                                visible_cursor,
-                                &paint,
-                                tiny_skia::Transform::identity(),
-                                None,
-                            );
-                        }
+                    if let Some(cursor_rect) = Rect::from_xywh(abs_x, abs_y, cursor_w, cursor_h) {
+                        drawcommands.push(DrawCommand::Rect(cursor_rect, label.textcolor, clip));
                     }
                 }
             }
