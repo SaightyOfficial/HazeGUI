@@ -20,6 +20,7 @@ pub struct Win<T> {
     winsize: Size,
     minsize: Option<Size>,
     maxsize: Option<Size>,
+    wasfullscr: bool,
     start_num: u128,
     //last_frame_time: time::Instant,
     //needs_redraw: bool,
@@ -35,6 +36,7 @@ impl<T> Win<T> {
             winsize: Size::new(800, 600),
             minsize: None,
             maxsize: None,
+            wasfullscr: false,
             start_num: 0,
             //last_frame_time: time::Instant::now(),
             //needs_redraw: false,
@@ -72,18 +74,24 @@ impl<T> ApplicationHandler for Win<T> {
             .with_resizable(self.resizable)
             .with_inner_size(winit::dpi::PhysicalSize::new(self.winsize.width as u32, self.winsize.height as u32));
 
-        if let Some(min) = self.minsize { attributes = attributes.with_min_inner_size(winit::dpi::PhysicalSize::new(min.width as u32, min.height as u32)); }
-        if let Some(max) = self.maxsize { attributes = attributes.with_max_inner_size(winit::dpi::PhysicalSize::new(max.width as u32, max.height as u32)); }
+        if let Some(min) = self.minsize {
+            attributes = attributes.with_min_inner_size(winit::dpi::PhysicalSize::new(min.width as u32, min.height as u32));
+        }
+        if let Some(max) = self.maxsize {
+            attributes = attributes.with_max_inner_size(winit::dpi::PhysicalSize::new(max.width as u32, max.height as u32));
+        }
 
         let window = Arc::new(event_loop.create_window(attributes).expect("Failed to initialize window"));
-        
-        // Передаем window как `&Window`, который реализует HasWindowHandle + HasDisplayHandle
-        self.core.init_window(window.as_ref());
-        self.core.handle_resize(self.winsize.width as u32, self.winsize.height as u32);
 
-        self.window = Some(window);
+        let phys_size = window.inner_size();
+        let actual_size = Size::new(phys_size.width as i32, phys_size.height as i32);
+        self.winsize = actual_size;
 
-        if let Some(window) = &self.window { window.request_redraw(); }
+        self.core.init_window(window.clone(), actual_size);
+        self.core.handle_resize(phys_size.width, phys_size.height);
+
+        self.window = Some(window.clone());
+        window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -98,9 +106,24 @@ impl<T> ApplicationHandler for Win<T> {
             
             WindowEvent::Resized(new_size) => {
                 if new_size.width > 0 && new_size.height > 0 {
+                    let is_maximized_or_fullscreen = self.window.as_ref().map_or(false, |w| {
+                        w.is_maximized() || w.fullscreen().is_some()
+                    });
+
+                    let state_changed = self.wasfullscr != is_maximized_or_fullscreen;
+
                     self.winsize = Size::new(new_size.width as i32, new_size.height as i32);
-                    // Вся работа с поверхностью ушла в handle_resize через renderer.begin()
                     self.core.handle_resize(new_size.width, new_size.height);
+                    
+                    if state_changed {
+                        self.core.handle_resize(new_size.width, new_size.height);
+                    }
+
+                    self.wasfullscr = is_maximized_or_fullscreen;
+                    
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
                 }
             }
             
@@ -131,7 +154,6 @@ impl<T> ApplicationHandler for Win<T> {
 
                 use winit::keyboard::{Key, NamedKey};
                 let key = match &event.logical_key {
-                    // Усі твої службові клавіші через NamedKey:
                     Key::Named(NamedKey::Backspace) => crate::core::event::KKey::Backspace,
                     Key::Named(NamedKey::Enter)     => crate::core::event::KKey::Enter,
                     Key::Named(NamedKey::Space)     => crate::core::event::KKey::Space,

@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bytemuck = "1.25.2"
+bytemuck = { version = "1.25.2", features = [ "derive" ] }
 fontdue = "0.9.4"
 lazy_static = "1.5.0"
+pollster = "1.0.1"
 raw-window-handle = "0.6.2"
 rayon = "1.12.0"
 softbuffer = "0.4.8"
 tiny-skia = "0.12.0"
-winit = "0.30.13"
+wgpu = { version = "30.0.1", features = ["vulkan", "metal", "dx12", "wgsl"] }
+wgpu_text = "30.0.0"
+winit = { version = "0.30.13", features = ["rwh_06"] }

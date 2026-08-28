@@ -7,10 +7,14 @@ use crate::core::{event::Action, pos::Pos, size::Size, common::merge_rects};
 use core::color::Color;
 use core::shapes::Rect;
 use core::widget::Widget;
+use std::sync::Arc;
 use crate::widgets::frame;
 use raw_window_handle::{HasWindowHandle, HasDisplayHandle};
 
 type UserCallback<T> = Box<dyn FnMut(&Action, &mut frame::Frame, &mut T)>;
+
+pub trait GuiWindow: HasWindowHandle + HasDisplayHandle + Send + Sync {}
+impl<T: HasWindowHandle + HasDisplayHandle + Send + Sync> GuiWindow for T {}
 
 pub struct AppCore<T> {
     pub render: RenderBackend,
@@ -57,21 +61,21 @@ impl<T> AppCore<T> {
         self.redraw_actions.clear();
     }
 
-    pub fn init_window<W: HasWindowHandle + HasDisplayHandle>(&mut self, window: &W) {
-        self.render.init_window(window);
+    pub fn init_window(&mut self, window: Arc<dyn GuiWindow>, size: Size) {
+        self.render.init_window(window, size);
     }
 
     pub fn handle_resize(&mut self, width: u32, height: u32) {
         self.bufsize = Size::new(width as i32, height as i32);
         self.mainframe.base.size = self.bufsize;
+        
+        self.mainframe.set_relayout_flag(true);
         self.mainframe.update_layout(true);
 
-        //if width > 0 && height > 0 {
-        //    self.backbuffer = Some(Pixmap::new(width, height).expect("Failed to resize backbuffer"));
-        //}
         if width > 0 && height > 0 {
-            self.render.begin(self.bufsize);
+            self.render.resize(self.bufsize);
         }
+        
         self.dirty_rect = Some(None);
     }
 
@@ -149,40 +153,31 @@ impl<T> AppCore<T> {
         self.debug_thing = self.debug_thing.wrapping_add(1);
 
         if let Some(dirty_rect) = self.dirty_rect.take() {
-            let clip_rect = dirty_rect.unwrap_or_else(|| {
-                Rect::from_xywh(0, 0, self.bufsize.width, self.bufsize.height).unwrap()
-            });
+            self.render.begin();
 
-            // 1. Собираем команды текущего кадра
+            let clip_rect = if self.render.is_partial_render() {
+                dirty_rect.unwrap_or_else(|| {
+                    Rect::from_xywh(0, 0, self.bufsize.width, self.bufsize.height).unwrap()
+                })
+            } else {
+                Rect::from_xywh(0, 0, self.bufsize.width, self.bufsize.height).unwrap()
+            };
+
             self.mainframe.draw(&mut self.draw_command_list, Pos::new(0, 0), clip_rect, None);
 
-            // 2. РЕНДЕР БЭКЕНДОМ (здесь твой бэкенд выгребает self.draw_command_list)
-            // render_backend.draw(&self.draw_command_list, window_buffer);
-            for da in &self.draw_command_list {
-                match da {
-                    DrawCommand::Rect(rect, color, clip) => {
-                        self.render.drawrect(*rect, *color, *clip);
-                    }
-                    DrawCommand::Text(rect, color, textcolor, text, cliprect, font_size, padding) => {
-                        self.render.drawtext(*rect, *color, *textcolor, text.clone(), *cliprect, *font_size, *padding);
-                    }
-                }
+            self.render.rendercl(&self.draw_command_list);
+
+            let current_len = self.draw_command_list.len();
+            self.lastframebuffersize = current_len as i32;
+
+            self.draw_command_list.clear();
+
+            if self.draw_command_list.capacity() > 512 && current_len < self.draw_command_list.capacity() / 4 {
+                self.draw_command_list.shrink_to((current_len * 2).max(256));
             }
 
             //Flushing rendered image to window surface
             self.render.flush();
-
-            // 3. Аналитика длины
-            let current_len = self.draw_command_list.len();
-            self.lastframebuffersize = current_len as i32;
-
-            // 4. Очищаем команды СРАЗУ ПОСЛЕ РЕНДЕРА (все Arc::drop сработают прямо сейчас)
-            self.draw_command_list.clear();
-
-            // 5. Умный шринк капасити (если нужно поджать память)
-            if self.draw_command_list.capacity() > 512 && current_len < self.draw_command_list.capacity() / 4 {
-                self.draw_command_list.shrink_to((current_len * 2).max(256));
-            }
         }
 
         self.mainframe.set_dirty_flag(false);

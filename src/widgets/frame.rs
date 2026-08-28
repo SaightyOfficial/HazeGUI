@@ -596,7 +596,7 @@ impl Widget for Frame {
             (h - border_thickness * 2).max(0),
         )
         .and_then(|inner_r| intersect_rects(inner_clip, inner_r))
-        .unwrap_or(inner_clip); // Если разметка слишком мала, не падаем
+        .unwrap_or(inner_clip);
 
         let base_color = preferred_color.unwrap_or(self.base.bgcolor);
         let paintlight = base_color.lighter(self.lightchangeamount);
@@ -745,19 +745,11 @@ impl Widget for Frame {
         }
     }
     fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
-        //If self is dirty, then push redraw request with self rect inside
-        if self.base.is_dirty {
+        if self.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-            self.set_dirty_flag(false);//Clearing flag for self
-            return;//Exiting because all child widgets will also redraw
-        }
-
-        //Getting global pos and recursive handling of getting dirty rects
-        let my_global_pos = self.get_global_pos(pos_off);
-        for child in &mut self.children {
-            child.get_dirty_rect(my_global_pos, requests);
+            self.set_dirty_flag(false);
         }
     }
 }

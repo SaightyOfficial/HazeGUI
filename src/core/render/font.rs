@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use fontdue::{Font, FontSettings, Metrics};
 
-static FONT_DATA: &[u8] = include_bytes!("../../../fonts/JetBrainsMono-Regular.ttf");
+pub static FONT_DATA: &[u8] = include_bytes!("../../../fonts/JetBrainsMono-Regular.ttf");
 
 //Glyph cache and font data
 lazy_static::lazy_static! {
     pub static ref GLYPH_CACHE: Mutex<HashMap<(char, u32), (Metrics, Vec<u8>)>> = Mutex::new(HashMap::new());
-    pub static ref FONT: Font = {
+    pub static ref FONTBYTES: Font = {
         Font::from_bytes(FONT_DATA, FontSettings::default()).expect("Font load error")
     };
 }
@@ -22,7 +22,7 @@ pub fn get_glyph(c: char, font_size: f32) -> (Metrics, Vec<u8>) {
     }
 
     //Rasterising font and saving it
-    let (metrics, bitmap) = FONT.rasterize(c, font_size);
+    let (metrics, bitmap) = FONTBYTES.rasterize(c, font_size);
     cache.insert((c, size_key), (metrics.clone(), bitmap.clone()));
     
     (metrics, bitmap)

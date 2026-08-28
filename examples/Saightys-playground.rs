@@ -1,4 +1,7 @@
+#[allow(unused)]
 use haze_gui::core::render::cpurender::CPURenderConfig;
+#[allow(unused)]
+use haze_gui::core::render::wgpurender::WGPURenderConfig;
 #[allow(unused)]
 use haze_gui::widgets::{heavy::scrollframe::ScrollFrame, switch::Switch, textbox::Textbox};
 /*
@@ -32,6 +35,8 @@ pub struct AppState {
 }
 
 fn main() {
+    //env_logger::init();
+
     let init_state = AppState { click_count: 0 }; //initializing appstate
     let mut root = Win::new(init_state, RenderBackend::CPU(CPURenderConfig::default())); // Creating window
 

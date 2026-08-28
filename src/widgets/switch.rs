@@ -286,7 +286,7 @@ impl Widget for Switch {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-            self.set_dirty_flag(false);
+            self.set_dirty_flag(false); 
         }
     }
 }

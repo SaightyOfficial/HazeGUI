@@ -1,4 +1,4 @@
-use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat, intersect_rects};
+use crate::core::common::{Axis, LayoutEnum, LayoutStrat, Side, SizeEnum, SizeStrat};
 use crate::core::event::Action::ScrollChanged;
 use crate::core::event::{Action, DrawCommand, Event};
 use crate::core::idpool::{regid, get_id};
@@ -299,10 +299,9 @@ impl Widget for ScrollFrame {
         }
         self.frame.find(target_id)
     }
-    fn draw(&self, drawcommans: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
-        self.frame.draw(drawcommans, pos_off, clip, None);
+    fn draw(&self, drawcommands: &mut Vec<DrawCommand>, pos_off: Pos, clip: Rect, _preferred_color: Option<Color>) {
+        self.frame.draw(drawcommands, pos_off, clip, None);
     }
-
     fn update_layout(&mut self, forced: bool) {
         self.frame.update_layout(forced);
 
@@ -419,32 +418,11 @@ impl Widget for ScrollFrame {
         }
     }*/
     fn get_dirty_rect(&mut self, pos_off: Pos, requests: &mut Vec<Action>) {
-        //let abs_pos = Pos::new(pos_off.x + self.get_pos().x, pos_off.y + self.get_pos().y);
-        
-        if self.frame.base.is_dirty {
+        if self.frame.is_dirty() {
             if let Some(dirty_rect) = self.get_self_rect(pos_off) {
                 requests.push(Action::RedrawRequest(Some(dirty_rect)));
             }
-            self.set_dirty_flag(false); 
-            return;
-        }
-
-        if self.frame.is_dirty() {
-            let mut child_requests = Vec::new();
-            
-            self.frame.get_dirty_rect(pos_off, &mut child_requests);
-
-            if let Some(my_rect) = self.get_self_rect(pos_off) {
-                for action in child_requests {
-                    if let Action::RedrawRequest(Some(child_rect)) = action {
-                        if let Some(clipped_rect) = intersect_rects(my_rect, child_rect) {
-                            requests.push(Action::RedrawRequest(Some(clipped_rect)));
-                        }
-                    } else {
-                        requests.push(action);
-                    }
-                }
-            }
+            self.set_dirty_flag(false);
         }
     }
 }

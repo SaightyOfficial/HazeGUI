@@ -263,12 +263,9 @@ impl Widget for Textbox {
 
                             if let Some(widget) = self.frame.find_mut(hsid!(&labelid)) {
                                 if let Some(label) = widget.as_any_mut().downcast_mut::<Label>() {
-                                    // 1. Считаем локальный X относительно начала текста в Label
                                     let label_abs_x = pos_off.x + x_pos + label.base.pos.x;
                                     let local_x = (pos.x - label_abs_x).max(0) as f32;
 
-                                    // 2. Спрашиваем у Label индекс символа по этому X
-                                    // (метод get_char_index_at_x тебе нужно будет добавить в Label)
                                     self.cursor_pos = label.get_char_index_at_x(local_x);
                                 }
                             }

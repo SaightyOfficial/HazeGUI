@@ -6,7 +6,7 @@ use crate::core::shapes::Rect;
 use crate::core::widget::{Widget, WidgetBase};
 use crate::core::{color::Color, pos::Pos};
 use std::sync::Arc;
-use crate::core::render::font::FONT;
+use crate::core::render::font::FONTBYTES;
 
 ///Label struct where all label data is stored
 #[derive(Clone)]
@@ -40,7 +40,7 @@ impl Label {
         let mut width = 0.0; //Line width
 
         //Getting char catrics
-        let line_metrics = FONT.horizontal_line_metrics(self.font_size as f32);
+        let line_metrics = FONTBYTES.horizontal_line_metrics(self.font_size as f32);
 
         //Line height
         let lheight = line_metrics
@@ -55,7 +55,7 @@ impl Label {
                 height += lheight;
                 width = 0.0;
             } else {
-                let metrics = FONT.metrics(ch, self.font_size as f32);
+                let metrics = FONTBYTES.metrics(ch, self.font_size as f32);
                 width += metrics.advance_width;
             }
         }
@@ -69,25 +69,19 @@ impl Label {
         }
     }
 
-    /// Получение cheap-clone Arc
     pub fn get_text(&self) -> Arc<String> {
         self.text.clone()
     }
 
-    /// Неизменяемая ссылка на String
     pub fn get_text_ref(&self) -> &str {
         &self.text
     }
 
-    /// Мутируемая ссылка на String с защитой Arc::make_mut
-    /// Если Arc уникален, мутирует на месте без аллокаций.
     pub fn get_text_mutref(&mut self) -> &mut String {
         self.set_dirty_flag(true);
-        // Важно: update_size вызовешь после изменений, если нужно
         Arc::make_mut(&mut self.text)
     }
 
-    /// Быстрая установка нового текста (принимает String, &str или Arc<String>)
     pub fn set_text(&mut self, new_text: impl Into<Arc<String>>) {
         self.text = new_text.into();
         self.update_size();
@@ -167,7 +161,7 @@ impl Label {
     }
 
     pub fn get_cursor_pos(&self, byte_offset: usize) -> (Pos, i32) {
-        let line_metrics = FONT.horizontal_line_metrics(self.font_size as f32);
+        let line_metrics = FONTBYTES.horizontal_line_metrics(self.font_size as f32);
         let lheight = line_metrics.map(|m| m.new_line_size).unwrap_or(self.font_size as f32);
 
         let mut x = self.padding;
@@ -182,7 +176,7 @@ impl Label {
                 x = self.padding;
                 y += lheight;
             } else {
-                let metrics = FONT.metrics(c, self.font_size as f32);
+                let metrics = FONTBYTES.metrics(c, self.font_size as f32);
                 x += metrics.advance_width;
             }
         }
@@ -201,14 +195,12 @@ impl Label {
 
         for (idx, c) in self.text.char_indices() {
             if c == '\n' {
-                // Если текст однострочный в тексбоксе, то при переходе строки можно завершать
                 break;
             }
 
-            let metrics = FONT.metrics(c, self.font_size as f32);
+            let metrics = FONTBYTES.metrics(c, self.font_size as f32);
             let char_width = metrics.advance_width;
 
-            // Половина ширины символа — чтобы клик ближе к правому краю буквы ставил каретку ПОСЛЕ неё
             let half_char = char_width / 2.0;
 
             if target_x < current_x + half_char {
@@ -218,7 +210,6 @@ impl Label {
             current_x += char_width;
         }
 
-        // Если кликнули правее самого последнего символа — ставим каретку в самый конец строки
         self.text.len()
     }
 }

@@ -24,7 +24,6 @@ impl Rect {
         Some(Rect { x: left, y: top, width: right - left, height: bottom - top})
     }
 
-    // Хелперы для быстрого доступа к границам в стиле tiny-skia
     #[inline] pub fn left(&self) -> i32 { self.x }
     #[inline] pub fn top(&self) -> i32 { self.y }
     #[inline] pub fn right(&self) -> i32 { self.x + self.width }
